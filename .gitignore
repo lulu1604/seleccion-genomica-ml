@@ -1,0 +1,15 @@
+# datos (cada uno los descarga)
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+# modelos pesados
+*.pkl
+*.pt
+*.h5
+# entorno y basura
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.env
+.DS_Store
+Thumbs.db
