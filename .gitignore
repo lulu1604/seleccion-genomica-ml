@@ -2,10 +2,19 @@
 data/raw/*
 data/processed/*
 !data/**/.gitkeep
+!data/sample/*
+!data/sample/**
+
+# Archivos pesados / binarios de datos crudos
+*.zip
+*.vcf
+*.gz
+
 # modelos pesados
 *.pkl
 *.pt
 *.h5
+
 # entorno y basura
 .venv/
 __pycache__/
