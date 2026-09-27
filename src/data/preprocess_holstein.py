@@ -12,8 +12,9 @@ Requisitos:
     - data/raw/holstein_2015/016261_files2.txt   (File S2: targets/EBV)
 
 Genera:
-    - data/processed/holstein/X.parquet
+    - data/processed/holstein/X.parquet   (id_animal + SNP1..SNP42551)
     - data/processed/holstein/y.csv
+    - data/processed/holstein/animal_ids.csv
     - data/processed/holstein/qc_report.json
     - data/processed/holstein/manifest.json
 """
@@ -308,16 +309,17 @@ def save_processed(
         raise ValueError("Refusing to save: number of animal IDs does not match X rows")
 
     # --- X.parquet ---
-    # X remains SNP-only. Its row order is persisted in animal_ids.csv.
+    # First column is id_animal (string) so each row carries its own key;
+    # animal_ids.csv is kept as a backup of the same order.
     x_path = PROCESSED_DIR / "X.parquet"
 
-    # Convert to pyarrow Table with uint8 schema
-    fields = [pa.field(name, pa.uint8()) for name in snp_ids]
+    # Convert to pyarrow Table: id_animal (string) + uint8 SNP columns
+    fields = [pa.field("id_animal", pa.string())]
+    fields += [pa.field(name, pa.uint8()) for name in snp_ids]
     schema = pa.schema(fields)
-    table = pa.table(
-        {name: X[name].values for name in snp_ids},
-        schema=schema,
-    )
+    columns = {"id_animal": [str(aid) for aid in animal_ids]}
+    columns.update({name: X[name].values for name in snp_ids})
+    table = pa.table(columns, schema=schema)
     pq.write_table(table, x_path, compression="snappy")
     x_size = x_path.stat().st_size
 
@@ -327,7 +329,7 @@ def save_processed(
     y_size = y_path.stat().st_size
 
     # --- animal_ids.csv ---
-    # This is the explicit row key for X.parquet and must always equal y.id_animal.
+    # Backup row key: must always equal X.parquet id_animal and y.id_animal.
     animal_ids_path = PROCESSED_DIR / "animal_ids.csv"
     pd.DataFrame({"id_animal": animal_ids}).to_csv(animal_ids_path, index=False)
     animal_ids_size = animal_ids_path.stat().st_size
@@ -429,7 +431,7 @@ def generate_manifest(qc_report: dict, save_info: dict):
         "dataset_name": "Holstein 2015",
         "version": "1.1",
         "source": "Zhang et al. (2015), G3: Genes, Genomes, Genetics",
-        "doi": "https://doi.org/10.1534/g3.115.016261",
+        "doi": "https://doi.org/10.1534/g3.114.016261",
         "raw_files": [
             "data/raw/holstein_2015/016261_files1.zip",
             "data/raw/holstein_2015/016261_files2.txt",

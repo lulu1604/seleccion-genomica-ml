@@ -2,8 +2,9 @@
 
 ## 1. Referencia, Enlace y Licencia
 
-* **Estudio:** Zhang et al. (2015), *Genome-Wide Association Studies for Quantitative Traits in Holstein Cattle*, **G3: Genes, Genomes, Genetics** (Vol. 5, Issue 11, pp. 2575–2581).
-* **DOI:** [https://doi.org/10.1534/g3.115.016261](https://doi.org/10.1534/g3.115.016261)
+* **Estudio:** Zhang, Erbe, He, Ober et al. (2015), *Accuracy of Whole-Genome Prediction Using a Genetic Architecture-Enhanced Variance-Covariance Matrix*, **G3: Genes|Genomes|Genetics** (Vol. 5, Issue 4, pp. 615–627).
+* **DOI:** [https://doi.org/10.1534/g3.114.016261](https://doi.org/10.1534/g3.114.016261)
+* **Artículo (Oxford Academic):** [https://academic.oup.com/g3journal/article/5/4/615/6025251](https://academic.oup.com/g3journal/article/5/4/615/6025251)
 * **Archivos suplementarios:** File S1 (genotipos) y File S2 (fenotipos / EBVs).
 * **Licencia:** Datos de acceso libre para investigación académica, publicados como material suplementario de la revista *G3*.
 
@@ -83,7 +84,8 @@ Los archivos crudos se almacenan localmente y **NO se suben a GitHub** (bloquead
 
 ### Pasos de descarga
 
-1. Acceder al paper: [https://doi.org/10.1534/g3.115.016261](https://doi.org/10.1534/g3.115.016261)
+1. Acceder al paper: [https://doi.org/10.1534/g3.114.016261](https://doi.org/10.1534/g3.114.016261)
+   (enlace directo al artículo: [https://academic.oup.com/g3journal/article/5/4/615/6025251](https://academic.oup.com/g3journal/article/5/4/615/6025251)).
 2. Descargar **File S1** (`016261_files1.zip`) y **File S2** (`016261_files2.txt`) desde la sección de material suplementario.
 3. Colocar ambos archivos en `data/raw/holstein_2015/`.
 
@@ -108,9 +110,9 @@ Los archivos crudos se almacenan localmente y **NO se suben a GitHub** (bloquead
 
 | Archivo | Contenido | Tamaño |
 |---|---|---|
-| `X.parquet` | Matriz 5024 × 42551 (uint8, snappy) | ~59 MB |
+| `X.parquet` | 5024 filas × 42552 columnas: `id_animal` (texto) + `SNP1`..`SNP42551` (uint8, snappy) | ~59 MB |
 | `y.csv` | Tabla con `id_animal`, `mkg`, `fpro`, `scs` | ~186 KB |
-| `animal_ids.csv` | Llave explícita y orden de las filas de `X.parquet` | ~48 KB |
+| `animal_ids.csv` | Respaldo de la llave y del orden de las filas de `X.parquet` | ~48 KB |
 | `qc_report.json` | Reporte de control de calidad machine-readable | ~1.6 KB |
 | `manifest.json` | Metadatos de reproducibilidad | ~850 B |
 
@@ -143,17 +145,24 @@ X, y_mkg = load_holstein(target="mkg")
 X, y_fpro = load_holstein(target="fpro")
 X, y_scs = load_holstein(target="scs")
 
+# Interfaz común del equipo: (X, y, ids)
+from src.data.load_holstein import cargar
+X, y_fpro, ids = cargar("fpro")   # ids[i] es el animal de la fila X[i]
+
 # Acceder a metadatos
 from src.data.load_holstein import load_holstein_meta
 meta = load_holstein_meta()
 ```
 
-`X.parquet` contiene solamente SNPs para conservar la matriz con forma
-`5024 × 42551`. La llave de cada fila se conserva en `animal_ids.csv`. Antes
-de devolver datos, el loader valida forma, schema SNP, valores 0/1/2, IDs,
-orden exacto `animal_ids.csv` ↔ `y.csv` y checksums de IDs/SNPs en el manifest.
-Así, `X[i]` y `y[i]` corresponden al mismo animal; si el contrato se altera,
-el loader falla con un error claro.
+La primera columna de `X.parquet` es `id_animal`, seguida de `SNP1`..`SNP42551`,
+igual que en `X_toy.csv`: cada fila lleva su propia llave. `animal_ids.csv` y
+`manifest.json` se conservan como respaldo. Antes de devolver datos, el loader
+valida forma, schema (`id_animal` + SNPs), valores 0/1/2, que `id_animal` de
+`X.parquet` coincida en valor y orden con `animal_ids.csv`, el orden exacto
+`animal_ids.csv` ↔ `y.csv` y los checksums de IDs/SNPs en el manifest.
+La matriz `X` que devuelven `load_holstein()` y `cargar()` no incluye la columna
+`id_animal` (forma `5024 × 42551`). Así, `X[i]` y `y[i]` corresponden al mismo
+animal; si el contrato se altera, el loader falla con un error claro.
 
 ---
 

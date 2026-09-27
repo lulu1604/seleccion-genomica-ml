@@ -1,8 +1,9 @@
 """Safe loading interface for the processed Holstein 2015 dataset.
 
-The genotype Parquet intentionally contains SNP columns only. Its row order is
-bound to ``animal_ids.csv``; the loader validates that file against ``y.csv``
-and the manifest before returning any data.
+The genotype Parquet has ``id_animal`` as its first column followed by the SNP
+columns, so every row carries its own key. The loader checks that column
+against ``animal_ids.csv`` (backup key), ``y.csv`` and the manifest before
+returning any data.
 """
 from __future__ import annotations
 
@@ -54,19 +55,28 @@ def _read_manifest() -> dict:
 def _validate_loaded_data(
     X_df: pd.DataFrame, y_df: pd.DataFrame, ids_df: pd.DataFrame, manifest: dict
 ) -> list[str]:
-    """Validate schema, values, and the persisted X/y row-order contract."""
+    """Validate schema, values, and the persisted X/y row-order contract.
+
+    ``X_df`` must include ``id_animal`` as its first column.
+    """
     expected_snp_ids = [f"SNP{i}" for i in range(1, EXPECTED_SNPS + 1)]
     expected_y_columns = ["id_animal", *VALID_TARGETS]
 
-    if X_df.shape != (EXPECTED_ANIMALS, EXPECTED_SNPS):
+    if X_df.shape != (EXPECTED_ANIMALS, EXPECTED_SNPS + 1):
         raise RuntimeError(
-            f"Unexpected X shape {X_df.shape}; expected {(EXPECTED_ANIMALS, EXPECTED_SNPS)}"
+            f"Unexpected X shape {X_df.shape}; expected {(EXPECTED_ANIMALS, EXPECTED_SNPS + 1)}"
+            " (id_animal + SNPs)"
         )
-    if list(X_df.columns) != expected_snp_ids:
+    if list(X_df.columns[:1]) != ["id_animal"]:
+        raise RuntimeError(
+            f"X.parquet first column must be 'id_animal', got '{X_df.columns[0]}'"
+        )
+    snp_df = X_df.iloc[:, 1:]
+    if list(snp_df.columns) != expected_snp_ids:
         raise RuntimeError("SNP column schema mismatch in X.parquet")
-    if not all(dtype == np.dtype("uint8") for dtype in X_df.dtypes):
+    if not all(dtype == np.dtype("uint8") for dtype in snp_df.dtypes):
         raise RuntimeError("X.parquet must contain uint8 SNP columns")
-    values = X_df.to_numpy(copy=False)
+    values = snp_df.to_numpy(copy=False)
     if values.min() < 0 or values.max() > 2:
         raise RuntimeError("X.parquet contains genotype values outside {0, 1, 2}")
 
@@ -89,6 +99,12 @@ def _validate_loaded_data(
         raise RuntimeError("animal_ids.csv contains missing or duplicate IDs")
 
     animal_ids = ids_df["id_animal"].astype(str).tolist()
+    if X_df["id_animal"].isna().any():
+        raise RuntimeError("X.parquet id_animal column contains missing IDs")
+    if X_df["id_animal"].astype(str).tolist() != animal_ids:
+        raise RuntimeError(
+            "id_animal in X.parquet does not match animal_ids.csv (values or row order)"
+        )
     if y_df["id_animal"].astype(str).tolist() != animal_ids:
         raise RuntimeError("Animal IDs in y.csv do not match animal_ids.csv row order")
 
@@ -101,12 +117,14 @@ def _validate_loaded_data(
 
 
 def _load_validated() -> tuple[pd.DataFrame, pd.DataFrame, list[str], dict]:
+    """Return (SNP-only X_df, y_df, animal_ids, manifest) after validation."""
     _check_processed_exist()
     X_df = pd.read_parquet(X_PATH)
-    y_df = pd.read_csv(Y_PATH)
-    ids_df = pd.read_csv(ANIMAL_IDS_PATH)
+    y_df = pd.read_csv(Y_PATH, dtype={"id_animal": str})
+    ids_df = pd.read_csv(ANIMAL_IDS_PATH, dtype={"id_animal": str})
     manifest = _read_manifest()
     animal_ids = _validate_loaded_data(X_df, y_df, ids_df, manifest)
+    X_df.pop("id_animal")
     return X_df, y_df, animal_ids, manifest
 
 
@@ -114,15 +132,27 @@ def load_holstein(target: Optional[str] = None, as_numpy: bool = True) -> tuple:
     """Load validated Holstein genotypes and either all or one target.
 
     ``X[i]`` and ``y[i]`` always refer to the same ``id_animal`` because the
-    loader validates the persisted row-key file and manifest before returning.
+    loader validates the id_animal column of X.parquet, the backup row-key
+    file and the manifest before returning. Same as ``cargar`` without ids.
+    """
+    X, y, _ = cargar(target, as_numpy=as_numpy)
+    return X, y
+
+
+def cargar(target: Optional[str] = None, as_numpy: bool = True) -> tuple:
+    """Devuelve (X, y, ids) validados.
+
+    X   -> matriz numérica uint8 (animales × SNPs), sin la columna id_animal
+    y   -> vector 1-D del target; si ``target`` es None, el DataFrame completo
+    ids -> lista de id_animal en el mismo orden que las filas de X
     """
     if target is not None and target not in VALID_TARGETS:
         raise ValueError(f"Invalid target '{target}'. Must be one of {VALID_TARGETS}")
 
-    X_df, y_df, _, _ = _load_validated()
+    X_df, y_df, animal_ids, _ = _load_validated()
     X = X_df.to_numpy(dtype=np.uint8, copy=False) if as_numpy else X_df
     y = y_df[target].to_numpy() if target is not None else y_df
-    return X, y
+    return X, y, animal_ids
 
 
 def load_holstein_meta() -> dict:
