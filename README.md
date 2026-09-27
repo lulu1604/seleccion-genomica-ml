@@ -17,8 +17,9 @@ pip install -r requirements.txt
 
 ## Datos
 
-Los datos **NO se suben al repo** (el `.gitignore` los bloquea).
-Instrucciones de descarga: _pendiente (R1)_.
+Los datos raw y procesados **NO se suben al repo** (el `.gitignore` los bloquea).
+Las instrucciones de descarga y el contrato de Holstein están en
+[`docs/fuente_datos.md`](docs/fuente_datos.md).
 
 ## Contrato de archivos
 
@@ -26,8 +27,9 @@ Todos los scripts leen y escriben en estos formatos:
 
 | Archivo | Contenido |
 |---|---|
-| `data/processed/X.parquet` | Filas = animales, columnas = SNPs codificados 0/1/2 |
-| `data/processed/y.csv` | `id_animal` + fenotipos (un rasgo por columna) |
+| `data/processed/holstein/X.parquet` | Filas = animales, columnas = SNPs codificados 0/1/2 |
+| `data/processed/holstein/animal_ids.csv` | Llave explícita del orden de filas de `X.parquet` |
+| `data/processed/holstein/y.csv` | `id_animal` + fenotipos; mismo orden que `animal_ids.csv` |
 | `data/processed/folds.csv` | `id_animal, fold` (1..5) — **todos usan los mismos folds** |
 | `results/resultados.csv` | `modelo, rasgo, escenario_n, ruido, fold, r_pearson, rmse, tiempo_s` |
 

@@ -31,7 +31,10 @@ Imágenes (72 bovinos)     No se une con nada: módulo aparte.
 
 - Nada de datos crudos al repo. El `.gitignore` bloquea `data/raw/` y `data/processed/`.
 - Sí se suben los archivos de muestra chiquitos (`data/sample/`).
-- Sin tildes, espacios ni mayúsculas en los nombres de columnas.
+- Sin tildes ni espacios en columnas creadas por el proyecto. Los nombres de
+  columnas entregados por una fuente se preservan cuando forman parte de su
+  contrato; Holstein usa `SNP1`..`SNP42551` y no se renombran sin un mapping
+  verificable.
 - Los identificadores siempre como texto, nunca como número (un ID que empieza en 0 pierde el 0 si es número).
 - Faltantes siempre como celda vacía, nunca como 0, "NA" o "-".
 - Cada script arriba lleva un comentario: qué hace, cómo se corre y qué archivo genera.
@@ -50,25 +53,25 @@ Imágenes (72 bovinos)     No se une con nada: módulo aparte.
 1. Descargar File S1 y File S2 del paper y guardarlos en `data/raw/`.
 2. Anotar del archivo crudo: número de filas, número de columnas, separador, si tiene cabecera y cómo vienen codificados los SNPs.
 3. Verificar que las tres columnas de fenotipo estén: producción de leche, % de grasa y células somáticas.
-4. Crear los datos de juguete en `data/sample/` con 10 animales inventados y 20 SNPs, respetando la estructura real. **Estos sí se suben** y son lo que desbloquea a todo el grupo.
+4. Crear los datos de muestra en `data/sample/holstein/` con 10 animales y 20 SNPs, respetando la estructura real. **Estos sí se suben** y son lo que desbloquea a todo el grupo.
 5. Escribir `docs/fuente_datos.md`: enlace, licencia, pasos de descarga y todo lo anotado en el punto 2.
 
 ### Formato de salida
 
 ```
-data/sample/X_toy.csv
-id_animal,snp_00001,snp_00002,...
-A0001,0,2,...
+data/sample/holstein/X_toy.csv
+id_animal,SNP1,SNP2,...
+Anim1,0,2,...
 
-data/sample/y_toy.csv
-id_animal,leche,grasa,celulas_somaticas
-A0001,320.5,-0.12,2.94
+data/sample/holstein/y_toy.csv
+id_animal,mkg,fpro,scs
+Anim1,320.5,-0.12,2.94
 ```
 
 ### Terminado cuando
 
 - [ ] Los archivos crudos abren sin error
-- [ ] `data/sample/` está en el repo y cualquiera lo puede leer con pandas
+- [ ] `data/sample/holstein/` está en el repo y cualquiera lo puede leer con pandas
 - [ ] `docs/fuente_datos.md` permite que otra persona repita la descarga sola
 
 > ⚠️ Si el enlace del paper está caído, avisar al grupo **el mismo día**. Plan B: la simulación de Ana pasa a ser la fuente principal.
