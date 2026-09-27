@@ -27,11 +27,20 @@ Todos los scripts leen y escriben en estos formatos:
 
 | Archivo | Contenido |
 |---|---|
-| `data/processed/holstein/X.parquet` | Filas = animales, columnas = SNPs codificados 0/1/2 |
-| `data/processed/holstein/animal_ids.csv` | Llave explícita del orden de filas de `X.parquet` |
-| `data/processed/holstein/y.csv` | `id_animal` + fenotipos; mismo orden que `animal_ids.csv` |
+| `data/processed/holstein/X.parquet` | Filas = animales. Primera columna `id_animal` (texto), luego `SNP1`..`SNP42551` codificados 0/1/2 |
+| `data/processed/holstein/y.csv` | `id_animal` + fenotipos; mismo orden que `X.parquet` |
+| `data/processed/holstein/animal_ids.csv`, `manifest.json` | Respaldo de integridad (orden de ids y checksums), no la llave principal |
 | `data/processed/folds.csv` | `id_animal, fold` (1..5) — **todos usan los mismos folds** |
 | `results/resultados.csv` | `modelo, rasgo, escenario_n, ruido, fold, r_pearson, rmse, tiempo_s` |
+
+## Uso
+
+```python
+from src.data.load_holstein import cargar
+X, y, ids = cargar(target="fpro")   # X sin id_animal; ids[i] es el animal de la fila X[i]
+```
+
+Tests: `pytest tests/ -q`
 
 ## Estructura
 
