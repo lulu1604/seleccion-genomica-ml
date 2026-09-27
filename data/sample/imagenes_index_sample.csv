@@ -1,0 +1,4 @@
+id_animal_img,ruta_lateral,ruta_posterior,peso_kg,altura_cruz_cm,perimetro_toracico_cm,largo_oblicuo_cm,longitud_cadera_cm
+1,data/processed/imagenes/1_lat.jpg,data/processed/imagenes/1_pos.jpg,545,124,190,161,47
+2,data/processed/imagenes/2_lat.jpg,data/processed/imagenes/2_pos.jpg,507,120,183,152,43
+3,data/processed/imagenes/3_lat.jpg,data/processed/imagenes/3_pos.jpg,450,124,179,151,41
