@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 
 # Datos del estudio de Abdollahi-Arpanahi
@@ -24,6 +25,5 @@ ax.invert_yaxis()  # Mantiene el modelo con mejor rendimiento arriba (GB)
 plt.tight_layout()
 
 # Guardar la imagen en alta resolución
-import os
 os.makedirs('results', exist_ok=True)
 plt.savefig('results/abdollahi-barras.png', dpi=300)
