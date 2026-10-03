@@ -1,0 +1,1051 @@
+%=======================================================================
+%  INFORME — PRIMERA ENTREGA
+%  Machine Learning · Universidad ESAN · Ciclo 2026-2
+%  Seleccion Genomica de Precision en Ganado Vacuno
+%
+%  ARCHIVO UNICO. Se copia y se pega completo en Overleaf.
+%  Compilador: pdfLaTeX. Compilar dos veces para que salgan las
+%  referencias cruzadas (Overleaf lo hace solo).
+%  No necesita ningun archivo externo: el diagrama de etapas esta
+%  dibujado con TikZ y la bibliografia esta dentro del documento.
+%
+%  CONTENIDO EXIGIDO POR EL PROFESOR, EN ESTE ORDEN:
+%    I.   Introduccion
+%    II.  Estado del Arte  -> minimo 4 antecedentes, cada uno con
+%         titulo/autores/anio, problema, BD, tecnicas, metodologia
+%         y resultados. Aqui hay 5.
+%    III. Metodologia propuesta -> grafico de etapas + descripcion
+%         de cada etapa.
+%    IV.  Experimentos -> la BD que se va a emplear.
+%    Referencias
+%
+%  COMO ENCONTRAR LO QUE FALTA
+%    Ctrl+F  >>> PENDIENTE   -> hay que escribirlo o verificarlo.
+%    En el PDF sale en rojo entre corchetes.
+%=======================================================================
+
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-tabla,es-nodecimaldot,es-noquoting]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{url}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage[hidelinks]{hyperref}
+
+% Colores del diagrama de etapas
+\definecolor{cajaBorde}{HTML}{2F4858}
+\definecolor{cajaFondo}{HTML}{EDF2F4}
+\definecolor{cajaFondoAcc}{HTML}{DCE8E2}
+\definecolor{textoTenue}{HTML}{5D6B66}
+
+% Marca para texto que todavia falta escribir
+\newcommand{\pendiente}[1]{\textcolor{red}{\textbf{[PENDIENTE: #1]}}}
+
+\begin{document}
+
+\title{Comparación de modelos de Machine Learning\\
+frente a GBLUP para la predicción\\
+del mérito genético en ganado vacuno\\
+a partir de datos SNP de alta dimensionalidad}
+
+% --- Bloque de autores: 3 arriba + 2 abajo ---------------------------
+% Se arma con tablas y no con \and porque \and reparte los nombres
+% segun el ancho disponible y los deja pegados unos con otros.
+\author{%
+\begin{tabular}{ccc}
+Solange Lucero Ayala Mauricio & Luzmila Ana Cusi Apomayta & Joe José Mantilla Huamán \\
+Facultad de Ingeniería        & Facultad de Ingeniería    & Facultad de Ingeniería \\
+Universidad ESAN              & Universidad ESAN          & Universidad ESAN \\
+Lima, Perú                    & Lima, Perú                & Lima, Perú \\
+22200171@ue.edu.pe            & 22200284@ue.edu.pe        & 23100113@ue.edu.pe
+\end{tabular}
+\\[1.6em]
+\begin{tabular}{cc}
+Chayna Tucto Magiliano & Ivan Francisco Xavier Villegas Alarcón \\
+Facultad de Ingeniería & Facultad de Ingeniería \\
+Universidad ESAN       & Universidad ESAN \\
+Lima, Perú             & Lima, Perú \\
+% >>> PENDIENTE (IVAN): reemplazar XXXXXXXX por tu codigo de alumno.
+23101292@ue.edu.pe     & XXXXXXXX@ue.edu.pe
+\end{tabular}%
+}
+
+\maketitle
+
+%=======================================================================
+\begin{abstract}
+La selección genómica permite estimar el mérito genético de un animal a
+partir de su perfil de marcadores moleculares, sin esperar a que exprese
+el rasgo ni a evaluar su descendencia. El método de referencia en la
+industria es GBLUP, que asume efectos aditivos e infinitesimales sobre
+todos los marcadores. Este trabajo evalúa si modelos de Machine Learning
+capaces de representar efectos no aditivos superan a GBLUP en precisión
+de predicción, y bajo qué condiciones lo hacen. Se trabaja con dos
+fuentes genómicas de igual formato: el conjunto Holstein alemán de Zhang
+\textit{et al.}, con 5\,024 toros genotipados en 42\,551 SNPs y tres
+rasgos productivos, y un conjunto simulado con AlphaSimR en tres
+escenarios de tamaño poblacional ($n = 125$, $500$ y $2\,000$) con
+heredabilidad objetivo $h^2 = 0{,}30$. Los cinco modelos comparados son
+GBLUP como línea base, regresión ridge, Random Forest, XGBoost y un
+perceptrón multicapa, evaluados con particiones construidas sobre la
+matriz de relación genómica para evitar fuga de información entre
+parientes. La métrica principal es la correlación de Pearson entre el
+valor predicho y el mérito genético observado. Los marcadores más
+influyentes según SHAP se anotan a gen mediante la API REST de Ensembl y
+se contrastan con la literatura mediante PubMed, de modo que la
+interpretación del modelo quede respaldada por evidencia biológica
+externa.
+\end{abstract}
+
+\begin{IEEEkeywords}
+selección genómica; GBLUP; SNP; Machine Learning; XGBoost; Random Forest;
+heredabilidad; validación cruzada genómica; SHAP; ganado vacuno.
+\end{IEEEkeywords}
+
+%=======================================================================
+\section{Introducción}
+%=======================================================================
+
+El mejoramiento genético del ganado vacuno consiste en elegir, entre los
+animales disponibles, aquellos cuya descendencia rendirá mejor. La
+dificultad es que el rendimiento observable de un animal mezcla dos
+componentes: lo que heredó y lo que le tocó de ambiente, alimentación,
+manejo y clima. Solo el primero se transmite a la siguiente generación.
+Durante décadas, separar ambos componentes exigió esperar a que el animal
+produjera y a que su descendencia también lo hiciera, un ciclo que en
+ganado lechero puede tomar cinco años o más por generación.
+
+La selección genómica cambió ese esquema. Meuwissen, Hayes y Goddard
+propusieron en 2001 estimar simultáneamente el efecto de decenas de miles
+de segmentos cromosómicos a partir de un número limitado de registros
+fenotípicos, y mostraron en simulación que con un mapa denso de
+marcadores era posible predecir el valor genético de la descendencia con
+una correlación de hasta 0{,}85, frente a 0{,}32 obtenido por mínimos
+cuadrados \cite{meuwissen2001}. El mecanismo es el desequilibrio de
+ligamiento: los marcadores cercanos a un gen de interés se heredan junto
+con él, de modo que el marcador funciona como una etiqueta observable del
+gen que no se observa. Un genotipo tomado al nacer pasa entonces a
+contener información que antes exigía años de registros.
+
+El estándar operativo derivado de esa idea es GBLUP, formulado en
+términos computacionalmente tratables por VanRaden \cite{vanraden2008}.
+GBLUP reemplaza el parentesco basado en pedigrí por una matriz de
+relación genómica construida directamente a partir de los marcadores, y
+resuelve un modelo mixto donde todos los marcadores contribuyen con
+efectos pequeños provenientes de una misma distribución normal. Ese
+supuesto, llamado infinitesimal, es a la vez la fortaleza y el límite del
+método: lo vuelve estable y barato de calcular incluso con más marcadores
+que animales, pero le impide representar dominancia, epistasis o
+cualquier interacción entre marcadores.
+
+Existen rasgos donde ese supuesto se sabe incorrecto. En ganado lechero,
+el gen DGAT1 tiene un efecto documentado y grande sobre el contenido de
+grasa de la leche, lo que contradice el supuesto infinitesimal para ese
+rasgo en particular. Del mismo modo, cuando el rasgo depende de la
+interacción entre el genotipo y el ambiente, un modelo puramente aditivo
+sobre marcadores no dispone de la forma funcional necesaria para
+representarla. Durbin \textit{et al.} documentaron en ganado vacuno
+1\,040 asociaciones de interacción entre duración del día y genotipo
+sobre la muda estacional de pelaje, evidencia directa de que la respuesta
+de un mismo genotipo cambia según la señal ambiental \cite{durbin2024}.
+
+Los modelos de Machine Learning sí pueden representar esas
+interacciones. Sin embargo, la evidencia empírica en predicción genómica
+no muestra una superioridad automática. Abdollahi-Arpanahi, Gianola y
+Peñagaricano compararon seis métodos sobre 11\,790 toros Holstein
+genotipados en 58\,000 SNPs y encontraron que gradient boosting alcanzó
+la mejor correlación predictiva (0{,}36), seguido de Bayes B (0{,}34) y
+GBLUP (0{,}33), mientras que las redes profundas quedaron por debajo
+(0{,}29 para redes convolucionales y 0{,}26 para el perceptrón
+multicapa); los métodos de aprendizaje profundo solo superaron a los
+paramétricos cuando la varianza no aditiva era considerable y el tamaño
+de muestra lo permitía \cite{abdollahi2020}. La diferencia entre el mejor
+y el peor método fue de una décima de correlación, lo que indica que la
+pregunta relevante no es cuál método es superior en abstracto, sino bajo
+qué condiciones de tamaño poblacional y arquitectura genética conviene
+uno u otro.
+
+Ese es el vacío que aborda este trabajo. El objetivo general es comparar
+el desempeño predictivo de modelos de Machine Learning frente al baseline
+GBLUP en la estimación del mérito genético a partir de perfiles de
+marcadores SNP, e identificar las condiciones de tamaño poblacional y
+arquitectura genética bajo las cuales cada enfoque resulta preferible. La
+pregunta de investigación que lo orienta es la siguiente: \textit{¿bajo
+qué condiciones de tamaño poblacional, heredabilidad y arquitectura
+genética los modelos de Machine Learning superan a GBLUP en la precisión
+de predicción del mérito genético en ganado vacuno, cuando la validación
+se construye respetando la estructura de parentesco de la población?}
+
+Debe señalarse desde el inicio una restricción de los datos. En el Perú
+no existe un conjunto genómico de ganado vacuno de acceso público con el
+volumen que la selección genómica requiere, de modo que entrenar sobre
+datos locales no es una opción disponible. La comparación se realiza por
+lo tanto sobre dos fuentes complementarias: un conjunto real y público de
+referencia internacional, que permite contrastar los resultados contra un
+baseline ya publicado, y un conjunto simulado con parámetros controlados,
+que permite variar deliberadamente el tamaño poblacional y la
+heredabilidad para observar dónde cada modelo empieza a ganar o perder.
+Las conclusiones del trabajo son, en consecuencia, metodológicas y no
+constituyen recomendaciones de selección aplicables a un hato peruano.
+
+%=======================================================================
+\section{Estado del Arte}
+%=======================================================================
+
+Los cinco trabajos revisados se eligieron porque cada uno sostiene una
+pieza concreta de este proyecto: el marco conceptual, el método base, el
+conjunto de datos y su baseline publicado, la comparación contra modelos
+de Machine Learning, y la evidencia de interacción genotipo por ambiente.
+Cada uno se reporta con los seis campos requeridos.
+
+%-----------------------------------------------------------------------
+\subsection{Meuwissen, Hayes y Goddard (2001)}
+
+\textbf{Título, autores y año.} \textit{Prediction of Total Genetic Value
+Using Genome-Wide Dense Marker Maps}. Meuwissen, T.~H.~E., Hayes, B.~J.
+y Goddard, M.~E. \textit{Genetics}, 157(4):1819--1829, 2001
+\cite{meuwissen2001}.
+
+\textbf{Problema.} Cómo estimar simultáneamente los efectos de decenas de
+miles de haplotipos de marcadores a partir de un número limitado de
+registros fenotípicos, cuando el número de efectos a estimar excede
+ampliamente el número de observaciones disponibles.
+
+\textbf{Base de datos.} Datos simulados. Un genoma de 1\,000~cM con
+marcadores espaciados cada 1~cM, lo que produce aproximadamente 50\,000
+haplotipos de marcadores, en una población de tamaño efectivo
+$N_e = 100$. El desequilibrio de ligamiento entre marcadores y QTL surge
+del tamaño finito de la población.
+
+\textbf{Técnicas.} Mínimos cuadrados, BLUP de efectos de haplotipo con
+varianza igual por segmento cromosómico, y los métodos bayesianos BayesA
+y BayesB, que asumen una distribución previa sobre la varianza asociada a
+cada segmento.
+
+\textbf{Metodología.} Los marcadores que rodean cada región de 1~cM se
+combinan en haplotipos. Sobre esos haplotipos se estiman los efectos con
+cada método y se predice el valor genético de la descendencia de los
+animales registrados. La comparación se realiza mediante la correlación
+entre el valor genético predicho y el valor genético verdadero, conocido
+por construcción al tratarse de simulación.
+
+\textbf{Resultados.} Mínimos cuadrados alcanzó una precisión de 0{,}32,
+por sobreestimación de los efectos incluidos. BLUP llegó a 0{,}73 pese a
+que su supuesto de varianzas iguales era falso en la simulación. Los
+métodos bayesianos elevaron la precisión a 0{,}85, incluso cuando la
+distribución previa no correspondía a la verdadera.
+
+%-----------------------------------------------------------------------
+\subsection{VanRaden (2008)}
+
+\textbf{Título, autores y año.} \textit{Efficient Methods to Compute
+Genomic Predictions}. VanRaden, P.~M. \textit{Journal of Dairy Science},
+91(11):4414--4423, 2008 \cite{vanraden2008}.
+
+\textbf{Problema.} Cómo calcular predicciones genómicas de forma
+computacionalmente eficiente cuando el número de marcadores excede el
+número de animales, y cómo integrar la información de marcadores con la
+del pedigrí tradicional.
+
+\textbf{Base de datos.} Genotipos de toros Holstein de la evaluación
+genética de Estados Unidos, obtenidos con chips de aproximadamente
+50\,000 marcadores.
+% >>> PENDIENTE (CHAYNA): completar el numero exacto de toros y de
+% marcadores tras control de calidad. Esta en el resumen o en Materiales
+% y Metodos del paper: J. Dairy Sci. 91(11):4414-4423,
+% doi 10.3168/jds.2007-0980.
+
+\textbf{Técnicas.} Tres formulaciones equivalentes de la predicción
+genómica: una selección de marcadores, un modelo lineal sobre todos los
+marcadores, y un modelo mixto sobre una matriz de relación genómica $G$.
+La contribución central es la construcción de $G$ a partir de los
+genotipos centrados.
+
+\textbf{Metodología.} Los genotipos, codificados como número de copias
+del alelo de referencia, se centran por la frecuencia alélica observada
+para formar la matriz $Z$. La matriz de relación genómica se obtiene
+entonces como
+\begin{equation}
+G = \frac{Z Z'}{2\sum_{j} p_j (1 - p_j)},
+\label{eq:vanraden}
+\end{equation}
+donde $p_j$ es la frecuencia del alelo de referencia en el marcador $j$.
+El denominador escala $G$ para que sea comparable con la matriz de
+parentesco por pedigrí. Reemplazando el pedigrí por $G$ en las ecuaciones
+del modelo mixto se obtiene GBLUP, cuyo costo depende del número de
+animales y no del número de marcadores.
+
+\textbf{Resultados.} Las tres formulaciones resultan equivalentes en las
+predicciones que producen, pero difieren de manera sustancial en costo
+computacional. El uso de $G$ permitió evaluaciones genómicas a escala
+nacional y mejoró la confiabilidad de las predicciones respecto de las
+basadas únicamente en pedigrí. La formulación se convirtió en el estándar
+de la industria.
+
+%-----------------------------------------------------------------------
+\subsection{Zhang \textit{et al.} (2015)}
+
+\textbf{Título, autores y año.} \textit{Accuracy of Whole-Genome
+Prediction Using a Genetic Architecture-Enhanced Variance-Covariance
+Matrix}. Zhang, Z., Erbe, M., He, J., Ober, U., Gao, N., Zhang, H.,
+Simianer, H. y Li, J. \textit{G3: Genes, Genomes, Genetics},
+5(4):615--627, 2015 \cite{zhang2015}.
+
+\textbf{Problema.} GBLUP asume que todos los marcadores contribuyen con
+efectos provenientes de una misma distribución. Cuando el rasgo tiene
+marcadores de efecto grande, ese supuesto desperdicia información. El
+problema es cómo incorporar conocimiento previo sobre la arquitectura
+genética del rasgo dentro de la matriz de relación, sin abandonar la
+eficiencia del modelo mixto.
+
+\textbf{Base de datos.} 5\,024 toros Holstein alemanes genotipados en
+42\,551 SNPs tras control de calidad, con valores fenotípicos
+desregresados para tres rasgos: producción de leche en kilogramos,
+porcentaje de grasa y score de células somáticas. Los datos están
+disponibles como material suplementario (File~S1 y File~S2) del artículo.
+El control de calidad —filtrado por frecuencia del alelo menor e
+imputación de faltantes— viene ya aplicado por los autores.
+
+\textbf{Técnicas.} GBLUP con la matriz $G$ estándar, BayesB, y el método
+propuesto BLUP$|$GA, que construye una matriz de relación ponderada donde
+un subconjunto de marcadores seleccionados recibe un peso mayor que el
+resto.
+
+\textbf{Metodología.} Validación cruzada con poblaciones de entrenamiento
+de tres tamaños —2\,000, 500 y 125 animales— para cada uno de los tres
+rasgos. El peso asignado al subconjunto de marcadores y el tamaño de ese
+subconjunto se determinan mediante búsqueda sobre una rejilla de valores.
+La precisión se mide como correlación entre el valor predicho y el
+fenotipo desregresado del conjunto de prueba.
+
+\textbf{Resultados.} BLUP$|$GA igualó o superó a GBLUP en los tres
+rasgos, con ventaja mayor cuando el rasgo presentaba marcadores de efecto
+grande y cuando la población de entrenamiento era pequeña. Las precisiones
+por rasgo y por tamaño de entrenamiento están reportadas en el material
+suplementario del artículo, lo que permite usarlas como referencia
+externa.
+
+\textbf{Relación con este proyecto.} Este es el conjunto de datos
+principal del trabajo, y el artículo aporta algo más valioso que los
+datos: una tabla de precisiones publicadas para los mismos tres tamaños
+de entrenamiento. Esa tabla permite verificar que la implementación propia
+de GBLUP es correcta antes de comparar cualquier modelo contra ella. Los
+tres tamaños de población simulada de este proyecto —125, 500 y 2\,000—
+se eligieron deliberadamente para coincidir con los del artículo.
+
+%-----------------------------------------------------------------------
+\subsection{Abdollahi-Arpanahi, Gianola y Peñagaricano (2020)}
+
+\textbf{Título, autores y año.} \textit{Deep learning versus parametric
+and ensemble methods for genomic prediction of complex phenotypes}.
+Abdollahi-Arpanahi, R., Gianola, D. y Peñagaricano, F. \textit{Genetics
+Selection Evolution}, 52:12, 2020 \cite{abdollahi2020}.
+
+\textbf{Problema.} Si los métodos de aprendizaje profundo, capaces de
+representar relaciones no lineales entre marcadores, superan a los
+métodos paramétricos y de ensamble en predicción genómica de fenotipos
+complejos, y bajo qué condiciones.
+
+\textbf{Base de datos.} 11\,790 toros Holstein genotipados en 58\,000
+SNPs, con la tasa de concepción del semental como rasgo objetivo.
+Complementariamente, escenarios simulados construidos sobre los genotipos
+reales observados, con heredabilidad de 0{,}30, efectos génicos aditivos
+o no aditivos, y 100 o 1\,000 nucleótidos de rasgo cuantitativo.
+
+\textbf{Técnicas.} Seis enfoques comparados sobre los mismos datos:
+perceptrón multicapa, redes neuronales convolucionales, Random Forest,
+gradient boosting, GBLUP y Bayes B.
+
+\textbf{Metodología.} Validación cruzada sobre el conjunto real, y
+repetición de la comparación sobre los escenarios simulados variando de
+forma controlada la arquitectura genética —aditiva frente a no aditiva—
+y el número de nucleótidos causales. La métrica de comparación es la
+correlación predictiva entre valor predicho y valor observado.
+
+\textbf{Resultados.} Sobre el conjunto real, el orden de correlaciones
+predictivas fue: gradient boosting 0{,}36, Bayes~B 0{,}34, GBLUP 0{,}33,
+Random Forest 0{,}32, redes convolucionales 0{,}29 y perceptrón multicapa
+0{,}26. Los métodos de aprendizaje profundo superaron a los paramétricos
+únicamente cuando la varianza no aditiva era considerable y el tamaño de
+muestra resultaba suficiente.
+
+\textbf{Relación con este proyecto.} Es el antecedente metodológico más
+cercano y fija la expectativa realista del resultado: la diferencia entre
+el mejor y el peor método fue de una décima de correlación, de modo que
+un hallazgo honesto puede perfectamente consistir en que GBLUP no sea
+superado. También orienta la selección de modelos: gradient boosting
+—implementado aquí como XGBoost— es el candidato con mayor probabilidad
+de superar al baseline, y el perceptrón multicapa se incluye como
+contraste esperable a la baja en escenarios pequeños.
+
+%-----------------------------------------------------------------------
+\subsection{Durbin \textit{et al.} (2024)}
+
+\textbf{Título, autores y año.} \textit{Genomic loci involved in sensing
+environmental cues and metabolism affect seasonal coat shedding in Bos
+taurus and Bos indicus cattle}. Durbin, H.~J., Yampara-Iquise, H., Rowan,
+T.~N. \textit{et al.} \textit{G3: Genes, Genomes, Genetics},
+14(2):jkad279, 2024 \cite{durbin2024}.
+
+\textbf{Problema.} Qué loci del genoma bovino determinan la muda
+estacional del pelaje, rasgo asociado a la tolerancia al calor, y en qué
+medida el efecto de esos loci depende de señales ambientales como la
+duración del día y la temperatura aparente.
+
+\textbf{Base de datos.} 13\,364 animales con 36\,899 registros repetidos
+de score de muda de pelaje, recolectados a lo largo de nueve años,
+principalmente entre 2016 y 2019. Tras control de calidad e imputación se
+retuvieron genotipos en 747\,009 marcadores para 11\,560 individuos. Los
+datos son de acceso público en el repositorio Dryad.
+
+\textbf{Técnicas.} Modelos mixtos con medidas repetidas para estimar
+heredabilidad, estudios de asociación de genoma completo, y análisis de
+interacción genotipo por ambiente sobre covariables ambientales
+construidas.
+
+\textbf{Metodología.} Para cada registro se calcularon la temperatura
+aparente máxima media —que combina temperatura, humedad y viento— y la
+duración media del día sobre los 30 días previos a la fecha de
+evaluación. Esas covariables se incorporaron como término de interacción
+con el genotipo, lo que permite distinguir un efecto génico constante de
+uno que cambia según la señal ambiental.
+
+\textbf{Resultados.} La heredabilidad en sentido estricto se estimó entre
+0{,}321 y 0{,}407 según el subconjunto, con 0{,}368 (error estándar
+0{,}012) en el conjunto completo. Se identificaron cientos de variantes
+asociadas al rasgo, con señales fuertes en los cromosomas 5 y 23. El
+análisis de interacción detectó 1\,040 asociaciones de duración del día
+por genotipo y 17 de temperatura aparente por genotipo, lo que sitúa al
+fotoperiodo como la señal ambiental dominante.
+
+\textbf{Relación con este proyecto.} Aporta la evidencia empírica de que
+el efecto de un marcador puede depender del ambiente, lo que sustenta la
+hipótesis de que un modelo capaz de representar interacciones tiene margen
+para superar a GBLUP. Además, su conjunto de datos aporta dos elementos
+que el Holstein alemán no tiene: identificadores reales de SNP, que
+permiten la anotación a gen, y covariables ambientales explícitas.
+
+%-----------------------------------------------------------------------
+\subsection{Síntesis}
+
+La Tabla~\ref{tab:sintesis} resume los cinco trabajos. Dos patrones
+orientan las decisiones de este proyecto. El primero es que GBLUP
+constituye un baseline difícil de superar: se mantiene competitivo incluso
+cuando sus supuestos son falsos, de modo que cualquier mejora debe
+demostrarse sobre particiones que no favorezcan al modelo más flexible. El
+segundo es que las ventajas de los modelos no lineales aparecen
+condicionadas al tamaño de muestra y a la presencia efectiva de varianza
+no aditiva, lo que convierte el tamaño poblacional en una variable
+experimental y no en un dato del problema.
+
+\begin{table*}[!t]
+\centering
+\caption{Síntesis de los antecedentes revisados.}
+\label{tab:sintesis}
+\renewcommand{\arraystretch}{1.25}
+\footnotesize
+\begin{tabular}{p{2.1cm} p{2.9cm} p{3.1cm} p{3.0cm} p{3.4cm}}
+\toprule
+\textbf{Trabajo} & \textbf{Problema} & \textbf{Base de datos} &
+\textbf{Técnicas} & \textbf{Resultado principal} \\
+\midrule
+Meuwissen \textit{et al.} (2001) \cite{meuwissen2001} &
+Estimar miles de efectos con pocos registros &
+Simulación: 1\,000~cM, $\sim$50\,000 haplotipos, $N_e = 100$ &
+Mínimos cuadrados, BLUP, BayesA, BayesB &
+Precisión 0{,}32 / 0{,}73 / 0{,}85. Establece la viabilidad de la
+selección genómica \\
+
+VanRaden (2008) \cite{vanraden2008} &
+Calcular predicciones genómicas de forma eficiente &
+Toros Holstein de EE.~UU., chips de $\sim$50\,K marcadores &
+Tres formulaciones equivalentes; matriz $G$ &
+Las tres son equivalentes en predicción pero difieren en costo; $G$ se
+vuelve el estándar \\
+
+Zhang \textit{et al.} (2015) \cite{zhang2015} &
+Incorporar arquitectura genética en la matriz de relación &
+5\,024 toros Holstein alemanes, 42\,551 SNPs, 3 rasgos &
+GBLUP, BayesB, BLUP$|$GA &
+BLUP$|$GA iguala o supera a GBLUP; mayor ventaja con entrenamiento
+pequeño \\
+
+Abdollahi-Arpanahi \textit{et al.} (2020) \cite{abdollahi2020} &
+¿Superan las redes profundas a los métodos paramétricos? &
+11\,790 toros Holstein, 58\,000 SNPs, más simulación con $h^2 = 0{,}30$ &
+MLP, CNN, Random Forest, gradient boosting, GBLUP, Bayes~B &
+Gradient boosting 0{,}36 $>$ Bayes~B 0{,}34 $>$ GBLUP 0{,}33 $>$ RF
+0{,}32 $>$ CNN 0{,}29 $>$ MLP 0{,}26 \\
+
+Durbin \textit{et al.} (2024) \cite{durbin2024} &
+Loci de la muda estacional y su dependencia del ambiente &
+13\,364 animales, 36\,899 registros, 747\,009 marcadores &
+Modelos mixtos repetidos, GWAS, interacción G$\times$E &
+$h^2 = 0{,}368$; 1\,040 interacciones duración del día $\times$ genotipo \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+%=======================================================================
+\section{Metodología Propuesta}
+%=======================================================================
+
+El estudio es de tipo aplicado, cuantitativo y comparativo. Se organiza en
+ocho etapas secuenciales, donde cada etapa entrega un artefacto
+verificable que la siguiente consume. La Figura~\ref{fig:etapas} presenta
+el flujo completo, indicando para cada etapa el artefacto que produce, y
+las subsecciones que siguen describen cada una.
+
+La separación en etapas con artefactos intermedios cumple dos funciones.
+Permite que cinco personas trabajen en paralelo sin bloquearse entre sí, y
+hace que un error se localice en la etapa que lo produjo en lugar de
+aparecer al final como un resultado inexplicable.
+
+% ---------------------------------------------------------------------
+% DIAGRAMA DE ETAPAS
+% Dibujado con TikZ, sin archivos externos. Si hay que mover una caja,
+% cambiar su coordenada (x,y); las flechas siguen a los nodos solas.
+% ---------------------------------------------------------------------
+\begin{figure*}[!t]
+\centering
+% El resizebox ajusta el diagrama al ancho de la pagina. Si se agrega o
+% se mueve una caja, no hay que recalcular nada: se reescala solo.
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  etapa/.style={
+    draw=cajaBorde, line width=0.5pt, fill=cajaFondo, rounded corners=3pt,
+    minimum width=3.5cm, minimum height=1.25cm, align=center,
+    font=\footnotesize, inner sep=3pt},
+  clave/.style={etapa, fill=cajaFondoAcc, line width=0.9pt},
+  arte/.style={font=\scriptsize\itshape, text=textoTenue, align=center},
+  arr/.style={-{Latex[length=2.2mm,width=1.6mm]}, draw=cajaBorde,
+    line width=0.6pt}
+]
+
+% --- fila superior ---
+\node[etapa]  (E1) at ( 0.0, 0) {\textbf{E1}\\Extracción y\\documentación de fuentes};
+\node[etapa]  (E2) at ( 4.4, 0) {\textbf{E2}\\Preparación y\\contrato de carga};
+\node[clave]  (E3) at ( 8.8, 0) {\textbf{E3}\\Particiones por\\relación genómica};
+\node[etapa]  (E4) at (13.2, 0) {\textbf{E4}\\Baseline GBLUP\\y su validación};
+
+\node[arte, below=1mm of E1] {6 fuentes documentadas};
+\node[arte, below=1mm of E2] {\texttt{cargar() -> (X, y, ids)}};
+\node[arte, below=1mm of E3] {\texttt{folds.csv}\\lo consumen E4 y E5 sin excepción};
+\node[arte, below=1mm of E4] {precisión de referencia};
+
+% --- fila inferior ---
+\node[etapa]  (E5) at ( 0.0, -3.9) {\textbf{E5}\\Modelos de\\Machine Learning};
+\node[etapa]  (E6) at ( 4.4, -3.9) {\textbf{E6}\\Evaluación\\comparativa};
+\node[etapa]  (E7) at ( 8.8, -3.9) {\textbf{E7}\\Interpretabilidad y\\anotación biológica};
+\node[etapa]  (E8) at (13.2, -3.9) {\textbf{E8}\\Dashboard\\interactivo};
+
+\node[arte, below=1mm of E5] {4 modelos entrenados};
+\node[arte, below=1mm of E6] {\texttt{resultados.csv}};
+\node[arte, below=1mm of E7] {marcador $\to$ gen $\to$ evidencia};
+\node[arte, below=1mm of E8] {visualización final};
+
+% --- flechas de la fila superior ---
+\draw[arr] (E1) -- (E2);
+\draw[arr] (E2) -- (E3);
+\draw[arr] (E3) -- (E4);
+
+% --- retorno de E4 a E5: baja, cruza a la izquierda y entra por arriba ---
+\draw[arr, rounded corners=5pt]
+  (E4.south) -- (13.2,-2.15) -- (0,-2.15) -- (E5.north);
+
+% --- flechas de la fila inferior ---
+\draw[arr] (E5) -- (E6);
+\draw[arr] (E6) -- (E7);
+\draw[arr] (E7) -- (E8);
+
+% --- E3 tambien alimenta a E5: las mismas particiones para todos ---
+\draw[arr, dashed, draw=textoTenue]
+  (8.8,-1.62) -- (8.8,-2.15);
+
+\end{tikzpicture}%
+}
+\caption{Etapas de la metodología propuesta. Cada caja indica la etapa y,
+debajo, el artefacto verificable que entrega. La etapa E3, resaltada,
+genera el archivo de particiones que consumen tanto el baseline como los
+cuatro modelos de Machine Learning, de modo que la comparación se realiza
+siempre sobre las mismas divisiones de los datos.}
+\label{fig:etapas}
+\end{figure*}
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E1 — Extracción y documentación de fuentes}
+
+Se emplean seis fuentes agrupadas según la función que cumplen, detalladas
+en la Tabla~\ref{tab:fuentes}. Las dos primeras comparten formato de
+salida idéntico y son alternativas entre sí: entrenan el mismo modelo
+sobre poblaciones distintas, pero no se fusionan, porque sus animales no
+son los mismos. Las tres siguientes se encadenan aguas abajo del modelo,
+no aguas arriba: reciben la lista de marcadores que el modelo identificó
+como influyentes y devuelven evidencia biológica sobre ellos. La última
+constituye un módulo separado, con su propia población y su propio
+alcance.
+
+Cada fuente entrega, además de los datos, un documento que permite a un
+tercero repetir la descarga: enlace, licencia, número de filas y columnas,
+separador, codificación y cualquier transformación aplicada. Los datos
+crudos no se versionan por su tamaño; sí se versionan muestras reducidas
+que permiten programar sin descargarlos.
+
+\begin{table*}[!t]
+\centering
+\caption{Fuentes de datos del proyecto, su naturaleza y su función.}
+\label{tab:fuentes}
+\renewcommand{\arraystretch}{1.25}
+\footnotesize
+\begin{tabular}{p{2.5cm} p{2.0cm} p{1.5cm} p{4.3cm} p{4.5cm}}
+\toprule
+\textbf{Fuente} & \textbf{Tipo} & \textbf{API} & \textbf{Contenido} &
+\textbf{Función en el proyecto} \\
+\midrule
+Holstein alemán \cite{zhang2015} & Estructurada & No &
+5\,024 toros, 42\,551 SNPs, 3 rasgos productivos &
+Conjunto de entrenamiento principal; su baseline publicado valida nuestra
+implementación de GBLUP \\
+
+Simulación AlphaSimR & Estructurada & No &
+3 escenarios de 125, 500 y 2\,000 animales; 10\,000 SNPs; $h^2 = 0{,}30$ &
+Control experimental: permite variar tamaño poblacional y heredabilidad de
+forma deliberada \\
+
+Mizzou Hair Shedding \cite{durbin2024} & Estructurada & No &
+13\,364 animales, 36\,899 registros, 747\,009 marcadores, covariables
+ambientales &
+Referencia de interpretación: aporta identificadores reales de SNP y
+evidencia de interacción G$\times$E \\
+
+Ensembl REST & Semiestructurada (JSON) & Sí &
+Posición cromosómica y gen más cercano por identificador de SNP &
+Traduce los marcadores que el modelo destaca a nombres de gen \\
+
+PubMed / E-utilities & No estructurada (texto) & Sí &
+Resúmenes de artículos que mencionan cada gen &
+Contrasta cada gen destacado con la literatura publicada \\
+
+Cattle Side/Back View & No estructurada (imágenes) & No &
+72 bovinos con fotografía lateral y posterior más medidas corporales &
+Módulo complementario de visión, con población declarada independiente \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E2 — Preparación y contrato de carga}
+
+Toda fuente de entrenamiento se expone a través de la misma función,
+independientemente de su origen:
+
+\begin{center}
+\texttt{cargar(...) -> (X, y, ids)}
+\end{center}
+
+donde \texttt{X} contiene los genotipos con \texttt{id\_animal} como
+primera columna, \texttt{y} contiene los rasgos, e \texttt{ids} es el
+vector de identificadores en el mismo orden que las filas de \texttt{X}.
+La función valida antes de devolver: que la primera columna sea el
+identificador, que los genotipos estén codificados en $\{0, 1, 2\}$, que
+no haya valores faltantes ni identificadores duplicados, que el número de
+filas coincida entre \texttt{X} e \texttt{y}, y que los identificadores de
+ambas tablas sean idénticos en valor y en orden. Si alguna condición
+falla, la carga se detiene con un mensaje que nombra el problema.
+
+La última validación merece justificación. Un desalineamiento entre la
+matriz de genotipos y la tabla de rasgos —un desplazamiento de una sola
+fila— no produce ningún fallo visible: el modelo entrena sin errores y
+devuelve correlaciones cercanas a cero, sin que nada indique el origen del
+problema. Detectarlo en la carga es inmediato; detectarlo después de
+comparar cinco modelos sobre tres escenarios obliga a repetir la etapa
+completa.
+
+Esta interfaz es el contrato que permite que los modelos sean agnósticos a
+la fuente: el código de entrenamiento no distingue si los datos provienen
+del conjunto alemán o de la simulación. Su cumplimiento está verificado
+mediante pruebas automatizadas.
+
+El control de calidad propiamente dicho depende de la fuente. Sobre el
+conjunto Holstein no se repite, porque el filtrado por frecuencia del
+alelo menor y la imputación vienen aplicados por los autores del artículo
+original. Sobre el conjunto simulado la codificación se genera
+directamente en $\{0, 1, 2\}$ sin faltantes. Sobre cualquier fuente que se
+incorpore posteriormente se aplican dos filtros estándar: exclusión de
+marcadores con frecuencia del alelo menor inferior a 0{,}01, por aportar
+varianza despreciable, y exclusión de marcadores con más de 10\,\% de
+datos faltantes; los faltantes remanentes se imputan por la media del
+marcador.
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E3 — Construcción de particiones de validación}
+
+Esta es la decisión metodológica que más afecta la credibilidad de los
+resultados. Los animales de una población de cría están emparentados entre
+sí. Si la partición entre entrenamiento y prueba se realiza al azar, es
+probable que un animal de prueba tenga un hermano completo en
+entrenamiento, y el modelo obtendrá una correlación alta por reconocer al
+pariente y no por haber aprendido la relación entre marcadores y rasgo. La
+precisión reportada resulta entonces optimista y no representa el uso real
+del método, que consiste en predecir sobre animales jóvenes de una
+generación posterior.
+
+El procedimiento adoptado es el siguiente. Primero se construye la matriz
+de relación genómica $G$ según la Ecuación~\eqref{eq:vanraden}, usando
+únicamente los genotipos y sin intervención de los rasgos. Luego se
+agrupan los animales mediante agrupamiento jerárquico sobre la distancia
+$1 - G_{ij}$, de modo que los animales con parentesco alto caigan en el
+mismo grupo. Finalmente los grupos, no los animales individuales, se
+reparten en cinco pliegues. Así se garantiza que ningún animal de prueba
+comparta grupo con un animal de entrenamiento.
+
+La asignación resultante se materializa en un único archivo,
+\texttt{folds.csv}, con el identificador del animal y el número de pliegue
+que le corresponde. Ese archivo se genera una sola vez y lo consumen todos
+los modelos sin excepción, lo que garantiza que las diferencias observadas
+entre modelos no sean diferencias entre particiones.
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E4 — Baseline GBLUP y su validación}
+
+Se implementa GBLUP como modelo mixto $y = \mu + g + e$ con
+$g \sim N(0, G\sigma_g^2)$, donde $G$ es la matriz de la
+Ecuación~\eqref{eq:vanraden}. Antes de compararlo con cualquier otro
+modelo, su precisión se contrasta con los valores publicados por Zhang
+\textit{et al.} \cite{zhang2015} para los mismos tres tamaños de población
+de entrenamiento sobre el mismo conjunto de datos.
+
+Esta verificación no es opcional. Si la implementación propia no reproduce
+aproximadamente las cifras publicadas, cualquier diferencia posterior
+entre GBLUP y un modelo de Machine Learning sería atribuible a un error de
+implementación y no al modelo. El baseline se valida primero; la
+comparación viene después.
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E5 — Modelos de Machine Learning}
+
+Se entrenan cuatro modelos sobre las particiones de la etapa E3:
+
+\begin{itemize}
+  \item \textbf{Regresión ridge.} Equivalente algebraico de GBLUP
+    expresado sobre los marcadores en lugar de sobre los animales. Sirve
+    de control interno: si ridge y GBLUP no coinciden, hay un error de
+    implementación en alguno de los dos.
+  \item \textbf{Random Forest.} Ensamble de árboles. Captura interacciones
+    entre marcadores sin necesidad de especificarlas, pero fragmenta los
+    efectos pequeños y distribuidos.
+  \item \textbf{XGBoost.} Gradient boosting sobre árboles. Es el candidato
+    con mayor probabilidad de superar al baseline según el antecedente de
+    Abdollahi-Arpanahi \textit{et al.} \cite{abdollahi2020}.
+  \item \textbf{Perceptrón multicapa.} Red neuronal densa. Se incluye para
+    documentar el comportamiento del aprendizaje profundo en escenarios de
+    muestra pequeña, donde la literatura anticipa desventaja.
+\end{itemize}
+
+Los hiperparámetros se ajustan mediante validación anidada dentro de cada
+pliegue de entrenamiento, de modo que ningún dato del pliegue de prueba
+participe en la selección de hiperparámetros.
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E6 — Evaluación comparativa}
+
+La métrica principal es la correlación de Pearson $r$ entre el valor
+predicho y el valor de referencia del conjunto de prueba. Se usa
+correlación y no $R^2$ porque en selección lo que importa es el orden
+relativo de los animales: un modelo que ordena bien pero está desplazado
+en escala sigue sirviendo para decidir a quién seleccionar. Como métrica
+secundaria se reporta el RMSE, que sí es sensible a la escala. Se registra
+además el tiempo de entrenamiento, porque un modelo que mejora la
+correlación en 0{,}01 a costa de cien veces más cómputo puede no
+justificar su adopción.
+
+Cada combinación de modelo, rasgo, escenario y pliegue se escribe como una
+fila en un único archivo de resultados con el esquema \texttt{modelo,
+rasgo, escenario\_n, ruido, fold, r\_pearson, rmse, tiempo\_s}. Se reporta
+la dispersión entre pliegues junto con el promedio, y no se declara
+superioridad de un modelo sobre otro cuando los intervalos se solapan: con
+aproximadamente mil animales de prueba por pliegue, diferencias de
+correlación del orden de 0{,}01 pueden no ser distinguibles del error de
+muestreo.
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E7 — Interpretabilidad y anotación biológica}
+
+Sobre el modelo de mejor desempeño se calculan valores SHAP para atribuir
+la predicción a marcadores individuales. Los marcadores de mayor
+atribución se consultan en la API REST de Ensembl para la especie
+\textit{Bos taurus}, que devuelve cromosoma, posición y gen más cercano.
+Cada gen obtenido se consulta luego en PubMed mediante la API E-utilities
+del NCBI, contando menciones conjuntas del gen y de los términos del
+rasgo.
+
+El resultado es una tabla de tres columnas encadenadas —marcador, gen,
+evidencia— que permite distinguir dos situaciones: un marcador destacado
+por el modelo y respaldado por la literatura constituye evidencia
+convergente; uno destacado sin respaldo queda señalado como hallazgo a
+verificar. El gen DGAT1, con efecto documentado sobre el contenido de
+grasa de la leche, se usa como caso de prueba del encadenamiento: si el
+flujo funciona, ese gen debe aparecer con evidencia abundante.
+
+Debe señalarse una restricción de la fuente principal. Los marcadores del
+conjunto Holstein están etiquetados de forma secuencial, sin
+correspondencia publicada con nombres reales de marcadores, de modo que la
+anotación a gen no puede realizarse directamente sobre ellos. Por esa
+razón el procedimiento se ilustra sobre la fuente que sí posee
+identificadores reales.
+
+%-----------------------------------------------------------------------
+\subsection{Etapa E8 — Dashboard interactivo}
+
+Los resultados se exponen en un dashboard que permite comparar modelos,
+rasgos y escenarios, y consultar la evidencia biológica asociada a cada
+marcador relevante. El dashboard lee el archivo de resultados producido en
+la etapa E6 y no recalcula nada, de modo que lo que se muestra en pantalla
+es exactamente lo que se midió.
+
+El módulo complementario de visión se presenta en un apartado separado del
+mismo dashboard. Ese módulo estima medidas corporales —peso, altura a la
+cruz y perímetro torácico— a partir de fotografías lateral y posterior de
+72 bovinos, con un pipeline independiente del genómico. El índice generado
+contiene los 72 animales, todos con ambas vistas emparejadas por
+identificador y sin valores faltantes, con cinco medidas corporales por
+animal. Los 72 animales
+fotografiados no tienen genotipos y los 5\,024 toros del conjunto genómico
+no tienen fotografías: ambas poblaciones no comparten individuos y por lo
+tanto no se fusionan en un mismo modelo. El módulo responde una pregunta
+propia —si es posible caracterizar físicamente al animal sin balanza— y su
+alcance se declara de forma explícita.
+
+%-----------------------------------------------------------------------
+\subsection{Herramientas}
+
+El procesamiento de datos y el modelado se implementan en Python con
+pandas, NumPy, scikit-learn y XGBoost \cite{xgboost}. La simulación de
+poblaciones se realiza en R con el paquete AlphaSimR \cite{alphasimr}. La
+interpretabilidad usa la biblioteca SHAP \cite{shap}. El control de
+versiones es Git sobre GitHub, con una rama por integrante y revisión por
+Pull Request antes de integrar a la rama principal. Las pruebas
+automatizadas se ejecutan con pytest.
+
+%=======================================================================
+\section{Experimentos}
+%=======================================================================
+
+Esta sección presenta la base de datos que se emplea en el proyecto,
+verificada sobre el contenido real de los archivos y no sobre la
+descripción publicada.
+
+%-----------------------------------------------------------------------
+\subsection{Conjunto Holstein alemán}
+
+Los archivos suplementarios File~S1 y File~S2 del artículo de Zhang
+\textit{et al.} \cite{zhang2015} fueron descargados y verificados. El
+archivo de genotipos contiene 5\,024 animales y 42\,551 marcadores, con
+valores exclusivamente en $\{0, 1, 2\}$ y sin datos faltantes, ocupando
+428~MB una vez descomprimido. El archivo de fenotipos contiene 5\,024
+filas con las columnas de identificador y los tres rasgos, estandarizadas
+a media cero y desviación unitaria, sin nulos. El material suplementario
+incluye además una tabla con tres hojas —porcentaje de grasa con 1\,325
+registros, producción de leche con 1\,622 y score de células somáticas con
+933— y el documento con el baseline publicado para poblaciones de
+entrenamiento de 2\,000, 500 y 125 animales.
+
+La estructura de las dos tablas es la siguiente:
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Tabla} & \textbf{Columnas} \\
+\midrule
+Genotipos & \texttt{id\_animal}, \texttt{snp\_1} $\ldots$
+  \texttt{snp\_42551} \\
+Fenotipos & \texttt{id\_animal}, \texttt{mkg}, \texttt{fpro},
+  \texttt{scs} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+donde \texttt{mkg} es producción de leche en kilogramos, \texttt{fpro} es
+porcentaje de grasa y \texttt{scs} es el score de células somáticas. Los
+genotipos se codifican como número de copias del alelo de referencia.
+
+%-----------------------------------------------------------------------
+\subsection{Conjunto simulado con AlphaSimR}
+
+Se generaron tres escenarios con los parámetros de la
+Tabla~\ref{tab:params-sim}, elegidos para que los tamaños coincidan con
+los del baseline publicado y permitan la comparación directa. Los
+resultados verificados sobre los archivos generados están en la
+Tabla~\ref{tab:res-sim}.
+
+\begin{table}[!t]
+\centering
+\caption{Parámetros de la simulación de poblaciones.}
+\label{tab:params-sim}
+\renewcommand{\arraystretch}{1.2}
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Tamaños poblacionales & 125, 500 y 2\,000 animales \\
+Marcadores por individuo & 10\,000 SNPs \\
+Loci de rasgo cuantitativo (QTL) & 1\,000 \\
+Heredabilidad objetivo & $h^2 = 0{,}30$ \\
+Cromosomas & 29 (cariotipo bovino) \\
+Especie base del coalescente & \texttt{CATTLE} \\
+Arquitectura del rasgo & Puramente aditiva \\
+Semilla & 22200285 \\
+Herramientas & R 4.6.1, AlphaSimR 2.1.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!t]
+\centering
+\caption{Resultados de las tres corridas de simulación.}
+\label{tab:res-sim}
+\renewcommand{\arraystretch}{1.2}
+\footnotesize
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+\textbf{$n$} & \textbf{$h^2$ realizada} & \textbf{Tiempo (s)} &
+\textbf{Tamaño (MB)} \\
+\midrule
+125   & 0{,}283 & 148{,}4  & 2{,}6 \\
+500   & 0{,}289 & 1\,098{,}6 & 9{,}7 \\
+2\,000 & 0{,}304 & 3\,906{,}6 & 39{,}0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dos observaciones resultan de estas corridas. La primera es que la
+heredabilidad realizada converge al valor objetivo de 0{,}30 a medida que
+crece $n$: con 125 animales se obtiene 0{,}283 y con 2\,000 se obtiene
+0{,}304. La desviación en muestras pequeñas es error de muestreo, no un
+defecto de la simulación, y constituye por sí misma una ilustración del
+problema que el proyecto estudia: con pocos animales, incluso una cantidad
+fijada por parámetro se estima con ruido. La segunda es que el costo
+computacional crece de forma marcadamente no lineal, de dos minutos y
+medio a más de una hora, lo que obliga a versionar la salida de la corrida
+mayor en lugar de regenerarla en cada ejecución.
+
+Cada escenario produce dos archivos con la estructura del contrato de
+carga: la matriz de genotipos con \texttt{id\_animal} como primera
+columna, y la tabla de rasgos con el fenotipo observado y el valor
+genético verdadero. Este último solo existe por tratarse de simulación, y
+es lo que permite medir la precisión de cada modelo contra la verdad
+conocida y no contra un fenotipo ruidoso.
+
+%-----------------------------------------------------------------------
+\subsection{Verificación automatizada del contrato de datos}
+
+Cada fuente se acompaña de pruebas que verifican el contrato antes de que
+los datos lleguen al modelo. A la fecha hay 33 pruebas en ejecución, todas
+en verde, que comprueban entre otras cosas: que los identificadores estén
+alineados con las filas de la matriz de genotipos; que una tabla de rasgos
+con las filas reordenadas sea rechazada; que un genotipo fuera del rango
+$\{0, 1, 2\}$ sea rechazado; que un rasgo inexistente produzca un error
+nombrado en lugar de un fallo silencioso; y que la ausencia de un
+escenario simulado produzca un mensaje que indique el comando exacto para
+generarlo.
+
+%-----------------------------------------------------------------------
+\subsection{Disponibilidad de los datos}
+
+El conjunto de genotipos ocupa 428~MB, por lo que no se adjunta al archivo
+de entrega ni se versiona en el repositorio. Se comparte mediante enlace,
+junto con la documentación que permite repetir la descarga desde la fuente
+original. En el repositorio se versionan muestras reducidas que permiten
+ejecutar el código sin descargar el conjunto completo.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}p{2.5cm}p{5.1cm}@{}}
+\toprule
+\textbf{Recurso} & \textbf{Ubicación} \\
+\midrule
+Repositorio del proyecto &
+  \url{https://github.com/lulu1604/seleccion-genomica-ml} \\[2pt]
+Conjunto de datos completo &
+  \pendiente{ANA: pegar el enlace de Drive} \\[2pt]
+Fuente original de los datos &
+  \url{https://doi.org/10.1534/g3.114.016261} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%=======================================================================
+% REFERENCIAS
+% Escritas a mano dentro del documento para que todo quepa en un solo
+% archivo. Para agregar una: copiar un \bibitem, cambiar la clave y los
+% datos, y citarla en el texto con \cite{clave}. Si no se cita, no
+% aparece numerada correctamente.
+%=======================================================================
+\begin{thebibliography}{9}
+
+\bibitem{meuwissen2001}
+T.~H.~E. Meuwissen, B.~J. Hayes, and M.~E. Goddard,
+``Prediction of total genetic value using genome-wide dense marker maps,''
+\emph{Genetics}, vol.~157, no.~4, pp.~1819--1829, 2001.
+doi: 10.1093/genetics/157.4.1819.
+
+\bibitem{vanraden2008}
+P.~M. VanRaden,
+``Efficient methods to compute genomic predictions,''
+\emph{Journal of Dairy Science}, vol.~91, no.~11, pp.~4414--4423, 2008.
+doi: 10.3168/jds.2007-0980.
+
+\bibitem{zhang2015}
+Z.~Zhang, M.~Erbe, J.~He, U.~Ober, N.~Gao, H.~Zhang, H.~Simianer, and
+J.~Li,
+``Accuracy of whole-genome prediction using a genetic
+architecture-enhanced variance-covariance matrix,''
+\emph{G3: Genes, Genomes, Genetics}, vol.~5, no.~4, pp.~615--627, 2015.
+doi: 10.1534/g3.114.016261.
+
+\bibitem{abdollahi2020}
+R.~Abdollahi-Arpanahi, D.~Gianola, and F.~Peñagaricano,
+``Deep learning versus parametric and ensemble methods for genomic
+prediction of complex phenotypes,''
+\emph{Genetics Selection Evolution}, vol.~52, art.~12, 2020.
+doi: 10.1186/s12711-020-00531-z.
+
+\bibitem{durbin2024}
+H.~J. Durbin, H.~Yampara-Iquise, T.~N. Rowan \emph{et al.},
+``Genomic loci involved in sensing environmental cues and metabolism
+affect seasonal coat shedding in \emph{Bos taurus} and \emph{Bos indicus}
+cattle,''
+\emph{G3: Genes, Genomes, Genetics}, vol.~14, no.~2, art.~jkad279, 2024.
+doi: 10.1093/g3journal/jkad279.
+
+\bibitem{alphasimr}
+R.~C. Gaynor, G.~Gorjanc, and J.~M. Hickey,
+``AlphaSimR: an R package for breeding program simulations,''
+\emph{G3: Genes, Genomes, Genetics}, vol.~11, no.~2, art.~jkaa017, 2021.
+doi: 10.1093/g3journal/jkaa017.
+
+\bibitem{shap}
+S.~M. Lundberg and S.-I. Lee,
+``A unified approach to interpreting model predictions,''
+in \emph{Advances in Neural Information Processing Systems 30
+(NIPS 2017)}, pp.~4765--4774, 2017.
+
+\bibitem{xgboost}
+T.~Chen and C.~Guestrin,
+``XGBoost: A scalable tree boosting system,''
+in \emph{Proceedings of the 22nd ACM SIGKDD International Conference on
+Knowledge Discovery and Data Mining}, pp.~785--794, 2016.
+doi: 10.1145/2939672.2939785.
+
+\end{thebibliography}
+
+\end{document}
