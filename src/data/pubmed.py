@@ -3,10 +3,11 @@ Proyecto: Selección genómica
 Rama: f1-pubmed
 Responsable: Chayna
 ................................
-NOTA PARA EL INFORME (Sección Estado del Arte - Ana):
-Dato verificado de VanRaden (2008): 
-- Tamaño del conjunto: 3,329 toros genotipados.
-- Marcadores utilizados: 38,416 SNPs (tras control de calidad)
+NOTA: la cifra que antes figuraba aquí estaba mal atribuida.
+VanRaden (2008) trabajó sobre datos SIMULADOS (50,000 marcadores,
+2,967 toros). Los 38,416 SNPs y los 3,576 toros Holstein son de
+VanRaden et al. (2009), J. Dairy Sci. 92(1):16-24. Ya corregido en
+docs/informe/informe.tex; no copiar cifras desde este archivo.
 
 """
 
