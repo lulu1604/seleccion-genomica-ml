@@ -24,3 +24,14 @@ __pycache__/
 .env
 .DS_Store
 Thumbs.db
+# LaTeX: artefactos de compilacion, no se suben
+docs/informe/*.aux
+docs/informe/*.log
+docs/informe/*.out
+docs/informe/*.bbl
+docs/informe/*.blg
+docs/informe/*.fls
+docs/informe/*.fdb_latexmk
+docs/informe/*.synctex.gz
+docs/informe/*.pdf
+docs/informe/*.tmp
