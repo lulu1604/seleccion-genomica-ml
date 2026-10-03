@@ -24,5 +24,6 @@ ax.invert_yaxis()  # Mantiene el modelo con mejor rendimiento arriba (GB)
 plt.tight_layout()
 
 # Guardar la imagen en alta resolución
-plt.savefig('abdollahi-barras.png', dpi=300)
-print("Imagen 'abdollahi-barras.png' generada con exito!")
+import os
+os.makedirs('results', exist_ok=True)
+plt.savefig('results/abdollahi-barras.png', dpi=300)
