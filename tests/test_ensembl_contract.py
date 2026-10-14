@@ -149,3 +149,74 @@ def test_annotate_snps_writes_expected_columns(monkeypatch, tmp_path):
     assert list(df.columns) == ["snp_id", "cromosoma", "posicion", "gen"]
     assert list(df["snp_id"]) == ["SNP1", "SNP2"]
     assert output_path.exists()
+
+
+def test_vep_failure_is_not_cached(monkeypatch, tmp_path):
+    """If /variation answers but VEP fails, the gene must be retried next run."""
+    cache_dir = tmp_path / "cache"
+    vep_up = {"value": False}
+
+    def fake_api_get(url: str, timeout: int = 20, **kwargs):
+        if "/variation/" in url:
+            return {"mappings": [{"seq_region_name": "14", "start": 609870}]}
+        if not vep_up["value"]:
+            raise urllib.error.URLError("temporary timeout")
+        return [{"transcript_consequences": [{"gene_symbol": "DGAT1"}]}]
+
+    monkeypatch.setattr("src.data.ensembl.CACHE_DIR", cache_dir)
+    monkeypatch.setattr("src.data.ensembl._api_get", fake_api_get)
+
+    first = fetch_snp_annotation("rs109421300", use_cache=True)
+    assert first["gen"] == ""
+    assert not (cache_dir / "rs109421300.json").exists()
+
+    vep_up["value"] = True
+    second = fetch_snp_annotation("rs109421300", use_cache=True)
+    assert second["gen"] == "DGAT1"
+    assert (cache_dir / "rs109421300.json").exists()
+
+
+def test_api_get_does_not_retry_on_404(monkeypatch):
+    """A missing SNP (4xx) is a final answer: one request, no waiting."""
+    from src.data import ensembl
+
+    calls = {"n": 0}
+    sleeps = []
+
+    def fake_urlopen(req, timeout=20):
+        calls["n"] += 1
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", hdrs=None, fp=None)
+
+    monkeypatch.setattr(ensembl.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(ensembl.time, "sleep", lambda s: sleeps.append(s))
+
+    try:
+        ensembl._api_get("https://rest.ensembl.org/variation/bos_taurus/NOEXISTE12345")
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 404
+    else:
+        raise AssertionError("expected HTTPError")
+    assert calls["n"] == 1
+    assert sleeps == []
+
+
+def test_api_get_retries_on_server_error(monkeypatch):
+    """5xx errors are transient: they are retried up to max_retries."""
+    from src.data import ensembl
+
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=20):
+        calls["n"] += 1
+        raise urllib.error.HTTPError(req.full_url, 503, "Unavailable", hdrs=None, fp=None)
+
+    monkeypatch.setattr(ensembl.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(ensembl.time, "sleep", lambda s: None)
+
+    try:
+        ensembl._api_get("https://rest.ensembl.org/vep/bos_taurus/id/rs109421300", max_retries=3)
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 503
+    else:
+        raise AssertionError("expected HTTPError")
+    assert calls["n"] == 3
