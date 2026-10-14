@@ -78,7 +78,15 @@ def _api_get(url: str, timeout: int = 20, max_retries: int = 3) -> dict:
             with request.urlopen(req, timeout=timeout) as response:
                 payload = response.read()
             return json.loads(payload.decode("utf-8"))
-        except (ValueError, error.HTTPError, error.URLError, OSError, TimeoutError) as exc:
+        except error.HTTPError as exc:
+            # 4xx (salvo 429) es una respuesta definitiva de Ensembl, por
+            # ejemplo un SNP que no existe: reintentar no cambia nada.
+            if exc.code < 500 and exc.code != 429:
+                raise
+            last_error = exc
+            if attempt < max_retries - 1:
+                time.sleep(0.5 * (attempt + 1))
+        except (ValueError, error.URLError, OSError, TimeoutError) as exc:
             last_error = exc
             if attempt < max_retries - 1:
                 time.sleep(0.5 * (attempt + 1))
@@ -215,9 +223,11 @@ def fetch_snp_annotation(
         f"{parse.quote(species, safe='')}/id/{parse.quote(snp_id, safe='')}"
         "?content-type=application/json"
     )
+    vep_ok = False
     try:
         vep_payload = _api_get(vep_url, timeout=timeout)
         gen = _extract_vep_gene_symbol(vep_payload)
+        vep_ok = True
     except (ValueError, error.HTTPError, error.URLError, OSError, TimeoutError):
         gen = ""
 
@@ -231,9 +241,9 @@ def fetch_snp_annotation(
         "gen": str(gen),
     }
 
-    if not cromosoma and not posicion and not gen and use_cache:
-        _write_cache(snp_id, row)
-    elif use_cache:
+    # Solo se guarda si VEP respondio. Si fallo por red, la fila se devuelve
+    # igual pero se vuelve a consultar en la proxima corrida.
+    if use_cache and vep_ok:
         _write_cache(snp_id, row)
     return row
 
