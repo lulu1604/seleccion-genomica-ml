@@ -1,0 +1,28 @@
+{
+  "metodo": "VanRaden + clustering jerarquico de enlace promedio sobre 1-G",
+  "parentesco_minimo_agrupado": 0.1,
+  "k_folds": 5,
+  "semilla": 2026,
+  "n_animales": 5024,
+  "n_snps": 42551,
+  "n_grupos": 279,
+  "grupo_mayor": 176,
+  "tamanos_fold": [
+    1005,
+    1005,
+    1005,
+    1005,
+    1004
+  ],
+  "pares_cruzados": {
+    "G>0.25": 1808,
+    "G>0.40": 23,
+    "G>0.50": 2
+  },
+  "pares_cruzados_azar": {
+    "G>0.25": 29194,
+    "G>0.40": 1710,
+    "G>0.50": 494
+  },
+  "escenario": "holstein"
+}

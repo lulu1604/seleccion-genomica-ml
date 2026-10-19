@@ -1,0 +1,28 @@
+{
+  "metodo": "VanRaden + clustering jerarquico de enlace promedio sobre 1-G",
+  "parentesco_minimo_agrupado": 0.1,
+  "k_folds": 5,
+  "semilla": 2026,
+  "n_animales": 2000,
+  "n_snps": 10005,
+  "n_grupos": 1581,
+  "grupo_mayor": 3,
+  "tamanos_fold": [
+    400,
+    400,
+    400,
+    400,
+    400
+  ],
+  "pares_cruzados": {
+    "G>0.25": 0,
+    "G>0.40": 0,
+    "G>0.50": 0
+  },
+  "pares_cruzados_azar": {
+    "G>0.25": 0,
+    "G>0.40": 0,
+    "G>0.50": 0
+  },
+  "escenario": "sim_n2000"
+}
