@@ -12,3 +12,6 @@ plotly
 streamlit
 jupyter
 pytest
+fastapi
+uvicorn
+httpx
