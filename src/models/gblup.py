@@ -4,9 +4,9 @@ Predice valores geneticos a partir de SNPs codificados como 0, 1 o 2.
 La frecuencia alelica, la media del rasgo y el ajuste se calculan usando
 SOLO los animales de entrenamiento, sin informacion del conjunto de prueba.
 
-El parametro h2 es la heredabilidad asumida del rasgo (por defecto, 0.3).
-No se debe elegir h2 mirando la correlacion del test: debe fijarse antes
-o ajustarse mediante validacion interna sobre el entrenamiento.
+El parametro h2 es la heredabilidad asumida (por defecto, 0.3).
+Se fija antes de evaluar y se mantiene para todos los rasgos.
+No se elige mirando los resultados del conjunto de prueba.
 """
 
 import numpy as np
