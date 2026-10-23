@@ -1,11 +1,13 @@
 numpy
 pandas
+openpyxl
 scipy
 requests
 pyarrow
 scikit-learn
 xgboost
 torch
+torchvision
 shap
 matplotlib
 plotly
