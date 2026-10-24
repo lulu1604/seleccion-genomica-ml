@@ -46,7 +46,6 @@ def test_un_rsid_siempre_tiene_el_mismo_gen_y_cromosoma(tabla):
     assert (tabla.groupby("rsid")[["gen", "cromosoma"]].nunique() == 1).all().all()
 
 
-def test_dgat1_va_como_k232a_y_no_como_la_variante_intronica(tabla):
+def test_dgat1_incluye_k232a_y_su_marcador_del_chip(tabla):
     dgat1 = tabla[tabla["gen"] == "DGAT1"]
-    assert set(dgat1["rsid"]) == {"rs109234250"}
-    assert "rs109421300" not in set(tabla["rsid"])
+    assert set(dgat1["rsid"]) == {"rs109234250", "rs109421300"}
