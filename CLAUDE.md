@@ -19,6 +19,9 @@ contrato de archivos.
   `sim_n500`, `sim_n2000` (rasgo `fenotipo`; r se mide contra `valor_gv`).
 - Desarrolla y prueba en `sim_n500` (rápido); Holstein al final.
 - Semillas: `params.get("semilla", 2026)` en todo lo que tenga azar.
+- XGBoost: versión local registrada para reproducibilidad: `3.4.1`
+  (`python -m pip show xgboost`). Con varios hilos, los resultados pueden
+  variar ligeramente entre máquinas.
 
 ## Git
 
