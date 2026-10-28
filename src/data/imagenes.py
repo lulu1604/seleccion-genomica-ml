@@ -155,8 +155,8 @@ def main():
 
         filas_salida.append({
             "id_animal_img": id_animal,
-            "ruta_lateral": str(ruta_lat_dest),
-            "ruta_posterior": str(ruta_pos_dest),
+            "ruta_lateral": ruta_lat_dest.as_posix(),  # "/" tambien en Windows
+            "ruta_posterior": ruta_pos_dest.as_posix(),
             "peso_kg": fila["peso_kg"],
             "altura_cruz_cm": fila["altura_cruz_cm"],
             "perimetro_toracico_cm": fila["perimetro_toracico_cm"],
