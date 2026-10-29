@@ -1,0 +1,4 @@
+escenario,rasgo,ruido,modelo,n_folds,r_media,r_desv,rmse_media,rmse_desv,tiempo_medio_s
+holstein,fpro,base,gblup,5,0.710348,0.033784,0.745774,0.030311,5.852400
+holstein,fpro,base,xgb,5,0.775959,0.019920,0.633706,0.027958,431.540400
+sim_n500,fenotipo,base,xgb,5,0.106286,0.065174,1.052786,0.063335,6.358400
