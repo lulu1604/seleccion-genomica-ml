@@ -97,6 +97,65 @@ def graficar(resumen, carpeta):
         rutas.append(destino)
     return rutas
 
+def graficar_folds(datos, carpeta):
+    """Compara Pearson y RMSE por fold entre modelos."""
+    carpeta.mkdir(parents=True, exist_ok=True)
+
+    datos = datos.copy()
+    datos["escenario"] = datos.apply(
+        lambda fila: (
+            "holstein" if fila["rasgo"] != "fenotipo"
+            else f"sim_n{int(fila['escenario_n'])}"
+        ),
+        axis=1,
+    )
+
+    rutas = []
+
+    for (escenario, rasgo, ruido), grupo in datos.groupby(
+        ["escenario", "rasgo", "ruido"]
+    ):
+        if grupo["modelo"].nunique() < 2:
+            continue
+
+        fig, ejes = plt.subplots(1, 2, figsize=(11, 4))
+
+        for modelo, filas in grupo.groupby("modelo"):
+            filas = filas.sort_values("fold")
+
+            ejes[0].plot(
+                filas["fold"],
+                filas["r_pearson"],
+                marker="o",
+                label=modelo,
+            )
+
+            ejes[1].plot(
+                filas["fold"],
+                filas["rmse"],
+                marker="o",
+                label=modelo,
+            )
+
+        ejes[0].set_ylabel("Pearson r")
+        ejes[1].set_ylabel("RMSE")
+
+        for eje in ejes:
+            eje.set_xlabel("Fold")
+            eje.set_xticks(sorted(grupo["fold"].unique()))
+            eje.legend()
+            eje.grid(alpha=0.3)
+
+        fig.suptitle(f"{escenario} - {rasgo} - {ruido}")
+        fig.tight_layout()
+
+        destino = carpeta / f"e6_folds_{escenario}_{rasgo}_{ruido}.png"
+        fig.savefig(destino, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        rutas.append(destino)
+
+    return rutas
 
 def main():
     """Lee resultados.csv, guarda resumen y graficos comparativos."""
@@ -105,11 +164,13 @@ def main():
         raise FileNotFoundError(
             "Falta results/resultados.csv: ejecuta --consolidar primero"
         )
-    resumen = resumir(pd.read_csv(entrada))
+    datos = pd.read_csv(entrada)
+    resumen = resumir(datos)
     salida = RESULTADOS / "resumen_e6.csv"
     resumen.to_csv(salida, index=False, float_format="%.6f")
     graficos = graficar(resumen, RESULTADOS / "figures")
-
+    graficos += graficar_folds(datos, RESULTADOS / "figures")
+    
     print(resumen.round(3).to_string(index=False))
     print(f"\nResumen guardado: {salida.relative_to(RAIZ)}")
     print(f"Graficos creados: {len(graficos)}")
