@@ -56,3 +56,29 @@ python -m src.evaluation.validacion_cruzada --modelo mlp --escenario sim_n2000 -
 ```
 
 Luego se consolida con `python -m src.evaluation.validacion_cruzada --consolidar`.
+
+## Actualización residual (29 de octubre de 2026)
+
+La versión definitiva usa una rama lineal aditiva más una residual `4 -> 2 -> 1`,
+validación interna 85/15 por fold, dropout seleccionado entre 0.0/0.1/0.2,
+early stopping y refit desde cero. Configuración: semilla 2026, máximo 100
+épocas, patience 15, lr 1e-3, weight decay 1e-3 y batch 4096.
+
+| Escenario | r v1 -> residual | RMSE v1 -> residual |
+|---|---:|---:|
+| mkg | 0.271 -> 0.680 | 1.271 -> 0.751 |
+| fpro | 0.236 -> 0.699 | 1.342 -> 0.729 |
+| scs | 0.176 -> 0.631 | 1.268 -> 0.807 |
+| sim_n125 | 0.130 -> 0.221 | 1.162 -> 0.992 |
+| sim_n500 | 0.118 -> 0.215 | 1.181 -> 1.040 |
+| sim_n2000 | 0.135 -> 0.373 | 1.130 -> 0.927 |
+
+La residual mejora r y RMSE en los seis escenarios. Los seis baseline están
+en `results/parciales/historico/`; los seis CSV superiores son los definitivos
+para E6 y sus selecciones por fold están en `results/experiments/`.
+
+Limitaciones: el tiempo reportado incluye selección interna y es mucho mayor
+en Holstein; los resultados no establecen causalidad ni sustituyen la
+comparación final con GBLUP/Ridge. No se seleccionó ninguna configuración con
+los folds de test externos. `results/resultados.csv` se excluye de esta entrega:
+Chayna debe consumir exclusivamente los seis parciales definitivos.
