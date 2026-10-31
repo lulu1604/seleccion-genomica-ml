@@ -1,0 +1,6 @@
+modelo,rasgo,escenario_n,ruido,fold,r_pearson,rmse,tiempo_s
+random_forest,fenotipo,500,base,1,0.099356,0.981118,0.679
+random_forest,fenotipo,500,base,2,0.078758,0.942618,0.559
+random_forest,fenotipo,500,base,3,-0.042078,1.062989,0.545
+random_forest,fenotipo,500,base,4,0.152987,1.029141,0.597
+random_forest,fenotipo,500,base,5,0.171452,0.976116,0.514

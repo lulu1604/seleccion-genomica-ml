@@ -1,0 +1,6 @@
+modelo,rasgo,escenario_n,ruido,fold,r_pearson,rmse,tiempo_s
+ridge,mkg,5024,base,1,0.71132,0.759946,18.335
+ridge,mkg,5024,base,2,0.6837,0.750185,17.62
+ridge,mkg,5024,base,3,0.665633,0.756131,18.484
+ridge,mkg,5024,base,4,0.718795,0.759237,18.674
+ridge,mkg,5024,base,5,0.686162,0.716477,19.217
