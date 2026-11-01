@@ -1,4 +1,11 @@
-"""La red: ResNet18 de torchvision (transfer learning) con 5 salidas.
+"""Las redes del modulo de vision.
+
+- `extraer_features`: MobileNetV2 preentrenada y congelada como extractor de
+  features (lo usa el metodo principal, `--metodo ensamble` en entrenar.py).
+- `RedMedidas`: la CNN base de la primera entrega (`--metodo cnn`), que se
+  describe abajo.
+
+CNN base: ResNet18 de torchvision (transfer learning) con 5 salidas.
 
 Cada animal tiene dos fotos. Las dos pasan por la MISMA ResNet18 (pesos
 compartidos) y sus vectores de 512 numeros se pegan en uno de 1024; una capa
@@ -48,3 +55,27 @@ class RedMedidas(nn.Module):
 
 def construir(preentrenada: bool = True, congelar_backbone: bool = True) -> RedMedidas:
     return RedMedidas(preentrenada=preentrenada, congelar_backbone=congelar_backbone)
+
+
+def extraer_features(lateral: torch.Tensor, posterior: torch.Tensor,
+                     preentrenada: bool = True, lote: int = 16):
+    """Features congeladas de MobileNetV2 (ImageNet) para cada animal.
+
+    Por vista: el mapa final de MobileNetV2 promediado (1280 numeros), y
+    tambien el de la foto en espejo, promediados entre si (la vaca puede mirar
+    a la izquierda o a la derecha). Devuelve (animales, 2560): lateral+posterior.
+    Nada se entrena aqui, asi que se puede calcular una vez para todos los
+    animales sin fuga entre train y test.
+    """
+    pesos = models.MobileNet_V2_Weights.IMAGENET1K_V1 if preentrenada else None
+    red = models.mobilenet_v2(weights=pesos).features.eval()
+    partes = []
+    with torch.no_grad():
+        for X in (lateral, posterior):
+            salida = []
+            for i in range(0, len(X), lote):
+                x = X[i:i + lote]
+                f = (red(x).mean((2, 3)) + red(torch.flip(x, dims=[3])).mean((2, 3))) / 2
+                salida.append(f)
+            partes.append(torch.cat(salida))
+    return torch.cat(partes, dim=1).numpy().astype("float64")
