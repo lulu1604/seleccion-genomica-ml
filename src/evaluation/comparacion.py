@@ -65,6 +65,26 @@ def resumir(datos):
         rmse_desv=("rmse", "std"),
         tiempo_medio_s=("tiempo_s", "mean"),
     )
+    
+    claves_escenario = ["escenario", "rasgo", "ruido"]
+
+    referencia = resumen.loc[
+        resumen["modelo"] == "gblup",
+        claves_escenario + ["r_media"],
+    ].rename(columns={"r_media": "r_gblup"})
+
+    resumen = resumen.merge(
+        referencia,
+        on=claves_escenario,
+        how="left",
+        validate="many_to_one",
+    )
+
+    resumen["diferencia_vs_gblup"] = (
+        resumen["r_media"] - resumen["r_gblup"]
+    )
+    resumen = resumen.drop(columns="r_gblup")
+
     return resumen.sort_values(claves).reset_index(drop=True)
 
 
@@ -89,6 +109,25 @@ def graficar(resumen, carpeta):
         ejes[0].set_xlabel("r de Pearson medio (mayor es mejor)")
         ejes[1].barh(grupo["modelo"], grupo["rmse_media"])
         ejes[1].set_xlabel("RMSE medio (menor es mejor)")
+
+        gblup = grupo[grupo["modelo"] == "gblup"]
+
+        if not gblup.empty:
+            r_gblup = gblup["r_media"].iloc[0]
+            rmse_gblup = gblup["rmse_media"].iloc[0]
+
+            ejes[0].axvline(
+                r_gblup, color="red", linestyle="--",
+                label="Referencia GBLUP",
+            )
+            ejes[1].axvline(
+                rmse_gblup, color="red", linestyle="--",
+                label="Referencia GBLUP",
+            )
+
+            for eje in ejes:
+                eje.legend()      
+        
         fig.suptitle(f"{escenario} - {rasgo} - {ruido}")
         fig.tight_layout()
         destino = carpeta / f"e6_{escenario}_{rasgo}_{ruido}.png"
@@ -168,6 +207,27 @@ def main():
     resumen = resumir(datos)
     salida = RESULTADOS / "resumen_e6.csv"
     resumen.to_csv(salida, index=False, float_format="%.6f")
+
+    
+    claves = ["escenario", "rasgo", "ruido"]
+
+    indices = resumen.groupby(claves)["r_media"].idxmax()
+    mejores = resumen.loc[
+        indices,
+        claves + [
+            "modelo", "r_media", "rmse_media",
+            "diferencia_vs_gblup",
+        ],
+    ]
+
+    mejores = mejores.sort_values(claves)
+    mejores.to_csv(
+        RESULTADOS / "mejor_modelo.csv",
+        index=False,
+        float_format="%.6f",
+    )
+
+
     graficos = graficar(resumen, RESULTADOS / "figures")
     graficos += graficar_folds(datos, RESULTADOS / "figures")
     
