@@ -1,0 +1,6 @@
+modelo,rasgo,escenario_n,ruido,fold,r_pearson,rmse,tiempo_s
+ridge,fenotipo,125,base,1,0.191893,0.93087,0.061
+ridge,fenotipo,125,base,2,-0.079996,1.077061,0.02
+ridge,fenotipo,125,base,3,0.085971,1.165146,0.019
+ridge,fenotipo,125,base,4,0.312044,1.122753,0.02
+ridge,fenotipo,125,base,5,0.171978,0.981787,0.024

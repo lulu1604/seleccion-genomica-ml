@@ -1,0 +1,6 @@
+modelo,rasgo,escenario_n,ruido,fold,r_pearson,rmse,tiempo_s
+mlp,scs,5024,base,1,0.171885,1.144561,14.956
+mlp,scs,5024,base,2,0.12419,1.504409,8.352
+mlp,scs,5024,base,3,0.236234,1.142572,8.202
+mlp,scs,5024,base,4,0.180826,1.317201,8.968
+mlp,scs,5024,base,5,0.169019,1.23073,11.688
