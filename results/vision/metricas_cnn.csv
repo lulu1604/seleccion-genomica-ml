@@ -1,0 +1,6 @@
+medida,rmse,mae,r_pearson
+largo_oblicuo_cm,11.9021,9.6642,0.281
+altura_cruz_cm,7.0822,5.2843,0.4918
+perimetro_toracico_cm,11.2566,9.1536,0.3168
+largo_cadera_cm,4.4896,3.4219,0.2466
+peso_kg,83.7867,71.774,0.4008
