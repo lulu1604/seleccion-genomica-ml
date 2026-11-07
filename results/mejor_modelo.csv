@@ -1,0 +1,7 @@
+escenario,rasgo,ruido,modelo,r_media,rmse_media,diferencia_vs_gblup
+holstein,fpro,base,ridge,0.777259,0.641775,0.066911
+holstein,mkg,base,ridge,0.693122,0.748395,0.007349
+holstein,scs,base,mlp,0.630995,0.806648,0.019501
+sim_n125,fenotipo,base,mlp,0.220673,0.991991,0.060398
+sim_n2000,fenotipo,base,gblup,0.407625,0.913510,0.000000
+sim_n500,fenotipo,base,mlp,0.214573,1.039926,0.013304
