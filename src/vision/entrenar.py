@@ -13,6 +13,11 @@ Metodos (`--metodo`):
 
 Primera prueba rapida de un solo fold: `--solo-fold 1`.
 
+Modelo para el dashboard (sin folds, con los 72 animales; lo usa
+src/vision/predecir.py):
+
+    python -m src.vision.entrenar --final --salida-modelo models/vision/ensamble.joblib
+
 Escribe results/vision/metricas_cnn.csv (lo lee el dashboard) con una fila por
 medida y el promedio de los folds, en cm y kg:
 
@@ -93,6 +98,47 @@ def ensamble_fold(tabla, folds, fold, features):
     preds = [ridge().fit(X[tr], y_norm).predict(X[te]) for X in features.values()]
     y_pred = np.mean(preds, axis=0) * desv + media
     return y[te], y_pred, np.tile(media, (te.sum(), 1))
+
+
+# ----------------------------------------------------- modelo final (dashboard)
+
+def entrenar_final(tabla, carpeta_mascaras, ruta_metricas, segmentar=None,
+                   preentrenada=True) -> dict:
+    """Ajusta los dos Ridge con TODOS los animales, para predecir vacas nuevas.
+
+    Es el mismo ensamble que se evalua con 5 folds, pero sin dejar animales
+    fuera. Su error esperado es el de la validacion cruzada: se copia de
+    `ruta_metricas` (results/vision/metricas_cnn.csv) dentro del paquete.
+    """
+    import sklearn
+    from datetime import datetime
+
+    features = features_ensamble(tabla, carpeta_mascaras, segmentar, preentrenada)
+    y = tabla[MEDIDAS].to_numpy(dtype=np.float64)
+    media, desv = y.mean(axis=0), y.std(axis=0)
+    desv[desv == 0] = 1.0
+    y_norm = (y - media) / desv
+    metricas = pd.read_csv(ruta_metricas).set_index("medida")
+    return {
+        "modelos": {k: ridge().fit(X, y_norm) for k, X in features.items()},
+        "media": media,
+        "desv": desv,
+        "medidas": list(MEDIDAS),
+        "error": {m: round(float(metricas.loc[m, "rmse"]), 1) for m in MEDIDAS},
+        "n_animales": len(tabla),
+        "preentrenada": preentrenada,
+        "sklearn": sklearn.__version__,
+        "creado": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def guardar_modelo(paquete: dict, ruta) -> Path:
+    import joblib
+
+    ruta = Path(ruta)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(paquete, ruta)
+    return ruta
 
 
 # --------------------------------------------------------------- CNN base
@@ -252,8 +298,23 @@ def main(argv=None) -> None:
                    help="Solo --metodo cnn: entrenar tambien la ResNet18")
     p.add_argument("--sin-preentrenar", action="store_true",
                    help="Pesos aleatorios en vez de los de ImageNet (solo para pruebas)")
-    p.add_argument("--salida", default="results/vision/metricas_cnn.csv")
+    p.add_argument("--salida", default="results/vision/metricas_cnn.csv",
+                   help="CSV de metricas que se escribe (con --final: el que se lee para el error)")
+    p.add_argument("--final", action="store_true",
+                   help="Entrenar el ensamble con los 72 animales y guardarlo para el dashboard")
+    p.add_argument("--salida-modelo", default="models/vision/ensamble.joblib")
     a = p.parse_args(argv)
+
+    if a.final:
+        tabla = cargar_indice(a.indice, a.raiz)
+        print(f"Entrenando el modelo final con {len(tabla)} animales "
+              "(la primera vez segmenta las fotos y tarda unos minutos)...")
+        paquete = entrenar_final(tabla, Path(a.raiz) / a.mascaras, a.salida,
+                                 preentrenada=not a.sin_preentrenar)
+        ruta = guardar_modelo(paquete, a.salida_modelo)
+        print(f"Guardado: {ruta} ({ruta.stat().st_size / 1e6:.1f} MB)")
+        print(f"Error esperado (RMSE de la validacion cruzada): {paquete['error']}")
+        return
 
     if a.solo_fold is not None and not 1 <= a.solo_fold <= a.folds:
         p.error(f"--solo-fold debe estar entre 1 y {a.folds}")

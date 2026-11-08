@@ -1,6 +1,6 @@
 # Contexto visión (medidas corporales desde foto) — Joe
 
-Actualizado: 1 de noviembre de 2026. Módulo independiente del genómico: no usa
+Actualizado: 7 de noviembre de 2026. Módulo independiente del genómico: no usa
 SNPs, ni `src/models/`, ni los folds de `data/folds/`.
 
 ## 1. Qué hice
@@ -109,7 +109,8 @@ las medidas del test no cambia sus predicciones.
 - Código: `src/data/imagenes.py` (endereza las posteriores),
   `src/vision/dataset.py`, `src/vision/cnn.py`, `src/vision/silueta.py`,
   `src/vision/entrenar.py`.
-- Tests: `tests/test_vision.py` (13 tests).
+- Tests: `tests/test_vision.py` (13 tests) y `tests/test_predecir.py` (5 tests).
+- Dashboard: `src/vision/predecir.py` y el modo `--final` de `src/vision/entrenar.py`.
 - Salidas: `results/vision/` y `results/figures/vision_real_vs_pred.png`.
 - Reproducir, con el dataset original descomprimido:
 
@@ -118,6 +119,30 @@ python src/data/imagenes.py --tabla "<dataset>/measurements.xlsx" --lateral "<da
 python -m src.vision.entrenar                       # método final (ensamble)
 python -m src.vision.entrenar --metodo cnn --salida results/vision/historico/metricas_cnn_base.csv
 ```
+
+## Uso en el dashboard
+
+- **Modelo final.** `python -m src.vision.entrenar --final` ajusta los mismos
+  dos Ridge con los **72 animales** (sin folds) y los guarda en
+  `models/vision/ensamble.joblib` (~0.2 MB, no se sube al repo). El error que
+  se reporta sigue siendo el de la validación cruzada, que el paquete copia de
+  `results/vision/metricas_cnn.csv`.
+- **`predecir()`** (`src/vision/predecir.py`) recibe la foto lateral y la
+  posterior de una vaca nueva y repite los pasos del entrenamiento: foto a
+  224×224, features de MobileNetV2, silueta con U²-Net, los dos Ridge y su
+  promedio. Devuelve las 5 medidas y su error esperado, por ejemplo
+  ±84 kg en peso. Si no encuentra la vaca en una foto, avisa con un error claro.
+  Desde la terminal:
+  `python -m src.vision.predecir --lateral <foto> --posterior <foto>`.
+- **Por qué no se endereza la foto nueva.** La regla "posterior horizontal →
+  girar 90°" corrige un defecto de este dataset. Una foto nueva tomada en
+  horizontal puede estar bien, así que por defecto no se gira. Sí se corrige la
+  rotación que guardan los celulares en el EXIF. `--enderezar` solo se usa con
+  fotos originales del dataset de Mongolia.
+- **Advertencia.** El modelo se entrenó con 72 vacas Horqin, fotografiadas con
+  un encuadre parecido. Con fotos de otras razas, a otra distancia de la cámara
+  o con otro encuadre, el error puede ser mayor que el de la validación
+  (±84 kg en peso, ±7 cm en altura).
 
 ## 7. Para la PPT
 

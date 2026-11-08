@@ -79,10 +79,14 @@ def asignar_folds(ids, n_folds: int = 5, semilla: int = 2026) -> np.ndarray:
     return folds
 
 
-def _foto_a_tensor(ruta: Path) -> torch.Tensor:
-    """Foto 224x224 -> tensor float (3, 224, 224) normalizado como ImageNet."""
-    with Image.open(ruta) as img:
-        a = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
+def _foto_a_tensor(foto) -> torch.Tensor:
+    """Foto 224x224 (ruta o imagen PIL) -> tensor float (3, 224, 224)
+    normalizado como ImageNet."""
+    if isinstance(foto, Image.Image):
+        a = np.asarray(foto.convert("RGB"), dtype=np.float32) / 255.0
+    else:
+        with Image.open(foto) as img:
+            a = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
     a = (a - MEDIA_IMAGENET) / DESV_IMAGENET
     return torch.from_numpy(a.transpose(2, 0, 1).copy())
 

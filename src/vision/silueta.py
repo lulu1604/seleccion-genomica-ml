@@ -6,6 +6,7 @@ data/processed/mascaras/ (no se suben al repo) para no recalcularlas.
 """
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -16,9 +17,14 @@ VISTAS = {"lat": "ruta_lateral", "pos": "ruta_posterior"}
 N_GEOMETRIA = 23  # medidas por vista
 
 
+@lru_cache(maxsize=1)
 def segmentador_rembg(modelo: str = "u2net"):
-    """Funcion foto(PIL) -> mascara booleana. La primera vez rembg descarga
-    el modelo U2-Net (~176 MB) desde GitHub."""
+    """Funcion foto(PIL) -> mascara booleana. La sesion se crea una sola vez
+    por proceso y se reutiliza.
+
+    La primera vez rembg descarga U2-Net (~176 MB) desde GitHub, por defecto a
+    ~/.rembg/models/u2net/u2net.onnx. Para no descargarlo (p. ej. en Docker),
+    copiar u2net.onnx a una carpeta y definir U2NET_HOME=<esa carpeta>."""
     from rembg import new_session, remove  # import aqui: los tests no lo necesitan
     sesion = new_session(modelo)
     return lambda img: np.asarray(remove(img, session=sesion, only_mask=True)) > 127

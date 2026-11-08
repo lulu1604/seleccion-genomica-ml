@@ -20,6 +20,8 @@ usan las dos y no una sola.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+
 import torch
 from torch import nn
 from torchvision import models
@@ -57,6 +59,14 @@ def construir(preentrenada: bool = True, congelar_backbone: bool = True) -> RedM
     return RedMedidas(preentrenada=preentrenada, congelar_backbone=congelar_backbone)
 
 
+@lru_cache(maxsize=2)
+def _mobilenet(preentrenada: bool = True) -> nn.Module:
+    """MobileNetV2 congelada. Se crea una sola vez por proceso y se reutiliza
+    (predecir() la llama en cada foto y cargarla de nuevo tardaria)."""
+    pesos = models.MobileNet_V2_Weights.IMAGENET1K_V1 if preentrenada else None
+    return models.mobilenet_v2(weights=pesos).features.eval()
+
+
 def extraer_features(lateral: torch.Tensor, posterior: torch.Tensor,
                      preentrenada: bool = True, lote: int = 16):
     """Features congeladas de MobileNetV2 (ImageNet) para cada animal.
@@ -67,8 +77,7 @@ def extraer_features(lateral: torch.Tensor, posterior: torch.Tensor,
     Nada se entrena aqui, asi que se puede calcular una vez para todos los
     animales sin fuga entre train y test.
     """
-    pesos = models.MobileNet_V2_Weights.IMAGENET1K_V1 if preentrenada else None
-    red = models.mobilenet_v2(weights=pesos).features.eval()
+    red = _mobilenet(preentrenada)
     partes = []
     with torch.no_grad():
         for X in (lateral, posterior):
