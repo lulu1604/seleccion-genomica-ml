@@ -12,6 +12,9 @@ data/processed/*
 *.tbi
 *.parquet
 
+# resultados consolidados: se arman con --consolidar
+results/resultados.csv
+
 # modelos pesados
 models/
 *.pkl
