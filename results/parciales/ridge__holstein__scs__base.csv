@@ -1,0 +1,6 @@
+modelo,rasgo,escenario_n,ruido,fold,r_pearson,rmse,tiempo_s
+ridge,scs,5024,base,1,0.643928,0.785104,16.115
+ridge,scs,5024,base,2,0.642915,0.864471,16.553
+ridge,scs,5024,base,3,0.59887,0.778531,15.72
+ridge,scs,5024,base,4,0.568635,0.901771,17.021
+ridge,scs,5024,base,5,0.691492,0.787538,16.048

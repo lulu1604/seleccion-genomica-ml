@@ -1,0 +1,6 @@
+modelo,rasgo,escenario_n,ruido,fold,r_pearson,rmse,tiempo_s
+xgb,fenotipo,500,base,1,0.144522,1.021557,7.127
+xgb,fenotipo,500,base,2,0.182594,0.962142,6.243
+xgb,fenotipo,500,base,3,0.105011,1.093079,6.166
+xgb,fenotipo,500,base,4,0.009098,1.124418,6.161
+xgb,fenotipo,500,base,5,0.090206,1.062732,6.095

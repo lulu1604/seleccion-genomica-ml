@@ -1,0 +1,6 @@
+modelo,rasgo,escenario_n,ruido,fold,r_pearson,rmse,tiempo_s
+random_forest,scs,5024,base,1,0.350453,0.946384,12.606
+random_forest,scs,5024,base,2,0.307377,1.035649,12.48
+random_forest,scs,5024,base,3,0.366926,0.870247,12.46
+random_forest,scs,5024,base,4,0.390802,0.966241,12.699
+random_forest,scs,5024,base,5,0.365948,0.991487,12.672
