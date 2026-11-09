@@ -24,6 +24,18 @@ ALPHA = 10.0
 N_EJEMPLO = 12
 
 
+def elegir_ejemplo(puntaje, ids, objetivos) -> list[int]:
+    """Posiciones de los animales más cercanos a cada puntaje objetivo, sin repetir."""
+    elegidos = []
+    numero = [int("".join(c for c in i if c.isdigit()) or 0) for i in ids]
+    for o in objetivos:
+        # desempate fijo (igual en cualquier PC): el mas cercano al objetivo y,
+        # si empatan, el de numero de animal mas bajo
+        orden = sorted(range(len(puntaje)), key=lambda k: (abs(puntaje[k] - o), numero[k]))
+        elegidos.append(next(k for k in orden if k not in elegidos))
+    return elegidos
+
+
 def main():
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -65,11 +77,7 @@ def main():
     ref = pd.DataFrame(Xa[te].astype(np.int8), columns=snps)
     ref.insert(0, "id_animal", ids[te].to_numpy())
     puntaje = np.array([a["por_prioridad"]["balanceado"]["puntaje"] for a in evaluar(ref, paq)])
-    objetivos = np.linspace(97, 4, N_EJEMPLO)
-    elegidos = []
-    for o in objetivos:
-        orden = np.argsort(np.abs(puntaje - o))
-        elegidos.append(next(k for k in orden if k not in elegidos))
+    elegidos = elegir_ejemplo(puntaje, ref["id_animal"], np.linspace(97, 4, N_EJEMPLO))
     ejemplo = ref.iloc[elegidos].copy()
     ejemplo.insert(1, "tipo", "Toro")
     destino = RAIZ / "data" / "sample" / "genotipos_ejemplo.csv"

@@ -4,8 +4,10 @@ import pandas as pd
 import pytest
 
 from dashboard.backend.app.genomica import (
-    PESOS, RASGOS, ErrorGenotipos, categoria, etiqueta, evaluar, leer_genotipos, percentil,
+    PESOS, RASGOS, ErrorGenotipos, categoria, etiqueta, evaluar, leer_genotipos, nombre_zona,
+    percentil,
 )
+from dashboard.backend.preparar_genomica import elegir_ejemplo
 
 N_SNP = 20
 N_REF = 200
@@ -79,10 +81,11 @@ def test_etiqueta_casos(p, esperado):
     assert etiqueta(p) == esperado
 
 
-def test_scs_bajo_es_ubre_mas_sana(paq):
-    df = _df([_extremo(paq, "scs", sube=False), _extremo(paq, "scs", sube=True)])
+def test_scs_alto_es_ubre_mas_sana(paq):
+    # escala RZS: más alto = menos células somáticas = ubre más sana (no se invierte)
+    df = _df([_extremo(paq, "scs", sube=True), _extremo(paq, "scs", sube=False)])
     scs = _prediccion(paq, df, "scs")
-    assert scs[0] < scs[1]
+    assert scs[0] > scs[1]
     sana, enferma = evaluar(df, paq)
     assert sana["percentiles"]["ubre sana"] > enferma["percentiles"]["ubre sana"]
 
@@ -141,13 +144,36 @@ def test_aportes_mas_promedio_dan_la_prediccion(paq):
     df = _df(np.random.default_rng(1).integers(0, 3, size=(4, N_SNP)))
     Xc = df[SNPS].to_numpy(dtype=np.float32) - paq["media_snp"]
     animales = evaluar(df, paq)
-    for r, nombre, sentido in (("fpro", "grasa", 1), ("mkg", "leche", 1), ("scs", "ubre sana", -1)):
+    for r, nombre in (("fpro", "grasa"), ("mkg", "leche"), ("scs", "ubre sana")):
         pred = _prediccion(paq, df, r)
         aportes = Xc * paq[f"coef_{r}"]
         np.testing.assert_allclose(aportes.sum(axis=1) + paq[f"media_pred_{r}"], pred, rtol=1e-5)
-        # las zonas que muestra la ficha son esos mismos aportes (scs con el signo invertido)
+        # las zonas que muestra la ficha son esos mismos aportes, sin invertir
         for i, animal in enumerate(animales):
-            esperado = np.sort(sentido * aportes[i])
+            esperado = np.sort(aportes[i])
             esperado = list(esperado[::-1][:3]) + [esperado[0]]
             valores = [z["valor"] for z in animal["zonas"][nombre]]
             np.testing.assert_allclose(valores, esperado, atol=1e-4)
+
+
+def test_nombre_zona():
+    assert nombre_zona(25091)["zona"] == "Zona del cromosoma 14"
+    assert "DGAT1" in nombre_zona(25091)["detalle"]
+    assert nombre_zona(100) == {"zona": "Otra zona del ADN", "detalle": "Sin gen conocido"}
+
+
+def test_cada_zona_trae_sus_campos(paq):
+    animal = evaluar(_df(np.ones((1, N_SNP))), paq)[0]
+    for zonas in animal["zonas"].values():
+        for z in zonas:
+            assert set(z) == {"marcador", "zona", "detalle", "efecto", "valor"}
+
+
+def test_ejemplo_desempata_por_numero_de_animal():
+    puntaje = np.array([50, 97, 97, 4, 4])
+    ids = ["Anim30", "Anim20", "Anim7", "Anim900", "Anim12"]
+    # entre los empatados gana el número más bajo (7 antes que 20, no orden de texto)
+    assert elegir_ejemplo(puntaje, ids, [97, 97, 4]) == [2, 1, 4]
+    # y no depende del orden en que vengan los animales
+    al_reves = elegir_ejemplo(puntaje[::-1], ids[::-1], [97, 97, 4])
+    assert [ids[::-1][k] for k in al_reves] == ["Anim7", "Anim20", "Anim12"]

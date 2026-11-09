@@ -16,8 +16,14 @@ import pandas as pd
 
 RASGOS = ["fpro", "mkg", "scs"]
 NOMBRE = {"fpro": "grasa", "mkg": "leche", "scs": "ubre sana"}
-# SCS (células somáticas): un valor MÁS BAJO es una ubre MÁS SANA, así que se invierte.
-SENTIDO = {"fpro": 1.0, "mkg": 1.0, "scs": -1.0}
+# Los 3 rasgos vienen en la escala alemana de valores relativos (RZ): más alto = mejor.
+# En SCS (RZS) un valor alto significa MENOS células somáticas, o sea ubre más sana
+# (Zhang et al. 2015, Tabla 1: SCS con media 102.3 y DE 11.7). Por eso no se invierte.
+SENTIDO = {"fpro": 1.0, "mkg": 1.0, "scs": 1.0}
+# Única zona con gen identificado: el pico de grasa y leche (SNP25070-SNP25140) cae al
+# inicio del cromosoma 14, igual que en la Figura S1 de Zhang et al. 2015, y tiene
+# efectos opuestos en grasa y leche, la firma de DGAT1.
+ZONAS_CONOCIDAS = [(25070, 25140, "Zona del cromosoma 14", "Probablemente el gen DGAT1, conocido por subir la grasa")]
 PESOS = {
     "balanceado": {"fpro": 1 / 3, "mkg": 1 / 3, "scs": 1 / 3},
     "grasa": {"fpro": 0.6, "mkg": 0.2, "scs": 0.2},
@@ -69,6 +75,14 @@ def etiqueta(p: dict) -> str:
     if np.mean([p[r] for r in RASGOS]) >= 50:
         return "sobre el promedio"
     return "bajo el promedio"
+
+
+def nombre_zona(posicion: int) -> dict:
+    """posicion = número del marcador (SNP25091 -> 25091)."""
+    for desde, hasta, nombre, detalle in ZONAS_CONOCIDAS:
+        if desde <= posicion <= hasta:
+            return {"zona": nombre, "detalle": detalle}
+    return {"zona": "Otra zona del ADN", "detalle": "Sin gen conocido"}
 
 
 def confianza(r: float) -> str:
@@ -132,7 +146,8 @@ def evaluar(df: pd.DataFrame, paq: dict, n_zonas: int = 3) -> list[dict]:
             aporte = SENTIDO[r] * Xc[i] * paq[f"coef_{r}"]
             orden = np.argsort(aporte)
             elegidos = list(orden[::-1][:n_zonas]) + [orden[0]]
-            zonas[NOMBRE[r]] = [{"marcador": snps[j], "efecto": "sube" if aporte[j] >= 0 else "baja",
+            zonas[NOMBRE[r]] = [{"marcador": snps[j], **nombre_zona(j + 1),
+                                 "efecto": "sube" if aporte[j] >= 0 else "baja",
                                  "valor": round(float(aporte[j]), 4)} for j in elegidos]
         salida.append({
             "id": ident,
