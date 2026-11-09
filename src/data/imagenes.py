@@ -86,10 +86,27 @@ def buscar_foto(carpeta: Path, id_animal: str) -> Path | None:
     return None
 
 
-def redimensionar_y_guardar(ruta_origen: Path, ruta_destino: Path) -> bool:
+def enderezar_posterior(img: Image.Image) -> Image.Image:
+    """Endereza una foto POSTERIOR del dataset.
+
+    Las fotos posteriores son tomas verticales, pero 70 de las 72 vienen
+    guardadas en horizontal (4032x3024) con la vaca girada 90 grados (cielo a
+    la izquierda) y sin etiqueta EXIF de orientacion. Las dos que vienen bien
+    (64.png y 50.jpg) son justamente las unicas guardadas en vertical. Regla:
+    posterior horizontal -> girar 90 grados en sentido horario.
+    """
+    if img.width > img.height:
+        return img.transpose(Image.Transpose.ROTATE_270)
+    return img
+
+
+def redimensionar_y_guardar(ruta_origen: Path, ruta_destino: Path,
+                            es_posterior: bool = False) -> bool:
     try:
         with Image.open(ruta_origen) as img:
             img = img.convert("RGB")
+            if es_posterior:
+                img = enderezar_posterior(img)
             img_redim = img.resize(TAMANO_SALIDA)
             ruta_destino.parent.mkdir(parents=True, exist_ok=True)
             img_redim.save(ruta_destino, quality=90)
@@ -146,7 +163,7 @@ def main():
         ruta_lat_dest = args.procesadas / f"{id_animal}_lat.jpg"
         ruta_pos_dest = args.procesadas / f"{id_animal}_pos.jpg"
         ok_lat = redimensionar_y_guardar(foto_lat, ruta_lat_dest)
-        ok_pos = redimensionar_y_guardar(foto_pos, ruta_pos_dest)
+        ok_pos = redimensionar_y_guardar(foto_pos, ruta_pos_dest, es_posterior=True)
 
         if not (ok_lat and ok_pos):
             incompletos += 1

@@ -1,4 +1,11 @@
-"""La red: ResNet18 de torchvision (transfer learning) con 5 salidas.
+"""Las redes del modulo de vision.
+
+- `extraer_features`: MobileNetV2 preentrenada y congelada como extractor de
+  features (lo usa el metodo principal, `--metodo ensamble` en entrenar.py).
+- `RedMedidas`: la CNN base de la primera entrega (`--metodo cnn`), que se
+  describe abajo.
+
+CNN base: ResNet18 de torchvision (transfer learning) con 5 salidas.
 
 Cada animal tiene dos fotos. Las dos pasan por la MISMA ResNet18 (pesos
 compartidos) y sus vectores de 512 numeros se pegan en uno de 1024; una capa
@@ -12,6 +19,8 @@ La lateral aporta largo y altura; la posterior, el ancho del cuerpo. Por eso se
 usan las dos y no una sola.
 """
 from __future__ import annotations
+
+from functools import lru_cache
 
 import torch
 from torch import nn
@@ -48,3 +57,34 @@ class RedMedidas(nn.Module):
 
 def construir(preentrenada: bool = True, congelar_backbone: bool = True) -> RedMedidas:
     return RedMedidas(preentrenada=preentrenada, congelar_backbone=congelar_backbone)
+
+
+@lru_cache(maxsize=2)
+def _mobilenet(preentrenada: bool = True) -> nn.Module:
+    """MobileNetV2 congelada. Se crea una sola vez por proceso y se reutiliza
+    (predecir() la llama en cada foto y cargarla de nuevo tardaria)."""
+    pesos = models.MobileNet_V2_Weights.IMAGENET1K_V1 if preentrenada else None
+    return models.mobilenet_v2(weights=pesos).features.eval()
+
+
+def extraer_features(lateral: torch.Tensor, posterior: torch.Tensor,
+                     preentrenada: bool = True, lote: int = 16):
+    """Features congeladas de MobileNetV2 (ImageNet) para cada animal.
+
+    Por vista: el mapa final de MobileNetV2 promediado (1280 numeros), y
+    tambien el de la foto en espejo, promediados entre si (la vaca puede mirar
+    a la izquierda o a la derecha). Devuelve (animales, 2560): lateral+posterior.
+    Nada se entrena aqui, asi que se puede calcular una vez para todos los
+    animales sin fuga entre train y test.
+    """
+    red = _mobilenet(preentrenada)
+    partes = []
+    with torch.no_grad():
+        for X in (lateral, posterior):
+            salida = []
+            for i in range(0, len(X), lote):
+                x = X[i:i + lote]
+                f = (red(x).mean((2, 3)) + red(torch.flip(x, dims=[3])).mean((2, 3))) / 2
+                salida.append(f)
+            partes.append(torch.cat(salida))
+    return torch.cat(partes, dim=1).numpy().astype("float64")

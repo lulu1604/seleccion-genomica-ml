@@ -8,6 +8,7 @@ scikit-learn
 xgboost
 torch
 torchvision
+rembg[cpu]
 shap
 matplotlib
 plotly
