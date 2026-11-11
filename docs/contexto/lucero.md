@@ -1,84 +1,83 @@
-# Contexto MLP — Lucero
+# Entrega MLP residual para E6 — Lucero
 
-Actualizado: 29 de octubre de 2026. Este artefacto acompaña las corridas del
-MLP para la E6; no selecciona un mejor modelo ni interpreta causalmente los
-resultados.
+Este documento da contexto para integrar los resultados de la MLP en la E6.
+La versión recomendada es la MLP residual de `src/models/mlp.py`; no hace falta
+reentrenarla para usar los resultados ya versionados.
 
-## Qué implementa
+## Qué se entregó
 
-`src/models/mlp.py` implementa una regresión con una red `42551 -> 4 -> 2 -> 1`
-para el contrato común `entrenar_y_predecir(X_train, y_train, X_test, **params)`.
-No abre archivos ni conoce los folds. En cada fold:
+- Modelo residual aditivo: salida lineal de los SNPs + corrección no lineal
+  `4 -> 2 -> 1` con ReLU.
+- Selección interna de `dropout` entre `0.0`, `0.1` y `0.2` por cada fold.
+- Validación interna 85/15 dentro del train externo, early stopping y refit
+  desde cero usando todo el train externo.
+- Seis resultados definitivos de cinco folds cada uno y sus tablas de
+  selección por fold.
+- Seis resultados baseline preservados en `results/parciales/historico/`.
 
-1. calcula la media y desviación de cada SNP **solo con train**;
-2. escala el rasgo de train, ajusta la red y predice test;
-3. revierte la escala del rasgo antes de devolver las predicciones.
+## Protocolo que evita leakage
 
-Esto conserva el aislamiento train/test establecido por
-`src.evaluation.validacion_cruzada` y los folds versionados en `data/folds/`.
+Para cada fold externo, el test queda aislado. El modelo divide únicamente el
+train externo en fit (85 %) y validación (15 %), estima medias/desvíos solo en
+fit, elige dropout y época por MSE de validación, y luego reinicializa el
+modelo para entrenar sobre todo el train externo. Las métricas de test se usan
+solo para el reporte final.
 
-## Configuración reproducible
+Configuración usada: semilla 2026, hasta 100 épocas, `patience=15`,
+`learning_rate=1e-3`, `weight_decay=1e-3`, `batch_size=4096` y límite de
+1024 MiB para la matriz de entrada del lote. Ese límite no equivale al uso
+total de RAM del proceso.
 
-Las tres corridas Holstein usan exactamente: `semilla=2026`, `epochs=5`,
-`batch_size=4096`, `max_batch_mb=1024`, `hidden_dim=4`,
-`learning_rate=0.005` y `weight_decay=0.0001`. Se ejecutaron con cinco folds
-para cada rasgo. El límite explícito de 1024 MiB conserva el lote grande usado
-en estas corridas; por defecto el modelo limita su matriz de entrada a 256 MiB
-para funcionar en equipos con menos memoria.
+## Resultados que debe usar Chayna
 
-| Escenario | Rasgo | Folds | r de Pearson medio | RMSE medio |
-|---|---:|---:|---:|---:|
-| Holstein (n=5024) | mkg | 5 | 0.271324 | 1.271117 |
-| Holstein (n=5024) | fpro | 5 | 0.235846 | 1.342416 |
-| Holstein (n=5024) | scs | 5 | 0.176431 | 1.267895 |
-| sim_n125 | fenotipo | 5 | 0.129761 | 1.161838 |
-| sim_n500 | fenotipo | 5 | 0.118423 | 1.180697 |
-| sim_n2000 | fenotipo | 5 | 0.135385 | 1.130397 |
+Los seis CSV definitivos están en `results/parciales/`. Todos cumplen el
+contrato E6: columnas `modelo, rasgo, escenario_n, ruido, fold, r_pearson,
+rmse, tiempo_s`, con folds del 1 al 5.
 
-Los cinco resultados por escenario están en `results/parciales/` y la tabla de
-30 filas consolidada está en `results/resultados.csv`.
+| Escenario | r de Pearson medio ± DE | RMSE medio | Tiempo total |
+|---|---:|---:|---:|
+| Holstein mkg | 0.680 ± 0.029 | 0.751 | 821.083 s |
+| Holstein fpro | 0.699 ± 0.019 | 0.729 | 755.090 s |
+| Holstein scs | 0.631 ± 0.040 | 0.807 | 727.482 s |
+| sim_n125 | 0.221 ± 0.082 | 0.992 | 1.705 s |
+| sim_n500 | 0.215 ± 0.123 | 1.040 | 5.289 s |
+| sim_n2000 | 0.373 ± 0.065 | 0.927 | 14.125 s |
 
-## Estado para la E6
+Frente a la MLP v1, la residual mejora tanto `r` como RMSE en los seis
+escenarios. La contrapartida es el tiempo de Holstein, pues incluye selección
+interna de hiperparámetros por fold.
 
-Se completaron las 6 de 6 corridas asignadas al MLP: tres rasgos Holstein y
-tres poblaciones AlphaSimR. Los CSV de simulación se validaron con el loader
-oficial antes de ejecutar los folds: IDs alineados, SNPs en `{0, 1, 2}`, 10 005
-marcadores y cinco folds balanceados. Los datos procesados permanecen fuera de
-Git en `data/processed/`.
+## Archivos clave
 
-Para reproducir las tres corridas de simulación, con los directorios oficiales
-ya disponibles en `data/processed/`, se usan:
+| Ruta | Uso |
+|---|---|
+| `src/models/mlp.py` | Arquitectura, entrenamiento, early stopping y predicción. |
+| `src/evaluation/seleccion_mlp.py` | Runner reproducible y registro de selección interna. |
+| `results/parciales/mlp__*.csv` | Entradas definitivas para E6. |
+| `results/experiments/mlp_residual__*__seleccion.csv` | Dropout, época y configuración elegida por fold. |
+| `results/parciales/historico/mlp_v1__*.csv` | Baseline histórico; no usar como resultado final. |
+| `tests/test_mlp.py`, `tests/test_seleccion_mlp.py` | Contratos de reproducibilidad, aislamiento y selección. |
+
+`results/resultados.csv` se excluyó intencionalmente del repositorio. Para la
+E6 deben consumirse los parciales anteriores, no un consolidado compartido.
+
+## Reproducir si fuera necesario
+
+Con los datasets procesados y folds oficiales disponibles localmente:
 
 ```powershell
-python -m src.evaluation.validacion_cruzada --modelo mlp --escenario sim_n125 --rasgo fenotipo --param semilla=2026 --param epochs=5 --param batch_size=4096 --param max_batch_mb=1024 --param hidden_dim=4 --param learning_rate=0.005 --param weight_decay=0.0001
-python -m src.evaluation.validacion_cruzada --modelo mlp --escenario sim_n500 --rasgo fenotipo --param semilla=2026 --param epochs=5 --param batch_size=4096 --param max_batch_mb=1024 --param hidden_dim=4 --param learning_rate=0.005 --param weight_decay=0.0001
-python -m src.evaluation.validacion_cruzada --modelo mlp --escenario sim_n2000 --rasgo fenotipo --param semilla=2026 --param epochs=5 --param batch_size=4096 --param max_batch_mb=1024 --param hidden_dim=4 --param learning_rate=0.005 --param weight_decay=0.0001
+python -m src.evaluation.seleccion_mlp --all
+python -m pytest -v -p no:cacheprovider
 ```
 
-Luego se consolida con `python -m src.evaluation.validacion_cruzada --consolidar`.
+La primera orden reentrena los seis escenarios, por lo que no debe ejecutarse
+si solo se necesitan los resultados entregados.
 
-## Actualización residual (29 de octubre de 2026)
+## Limitaciones
 
-La versión definitiva usa una rama lineal aditiva más una residual `4 -> 2 -> 1`,
-validación interna 85/15 por fold, dropout seleccionado entre 0.0/0.1/0.2,
-early stopping y refit desde cero. Configuración: semilla 2026, máximo 100
-épocas, patience 15, lr 1e-3, weight decay 1e-3 y batch 4096.
-
-| Escenario | r v1 -> residual | RMSE v1 -> residual |
-|---|---:|---:|
-| mkg | 0.271 -> 0.680 | 1.271 -> 0.751 |
-| fpro | 0.236 -> 0.699 | 1.342 -> 0.729 |
-| scs | 0.176 -> 0.631 | 1.268 -> 0.807 |
-| sim_n125 | 0.130 -> 0.221 | 1.162 -> 0.992 |
-| sim_n500 | 0.118 -> 0.215 | 1.181 -> 1.040 |
-| sim_n2000 | 0.135 -> 0.373 | 1.130 -> 0.927 |
-
-La residual mejora r y RMSE en los seis escenarios. Los seis baseline están
-en `results/parciales/historico/`; los seis CSV superiores son los definitivos
-para E6 y sus selecciones por fold están en `results/experiments/`.
-
-Limitaciones: el tiempo reportado incluye selección interna y es mucho mayor
-en Holstein; los resultados no establecen causalidad ni sustituyen la
-comparación final con GBLUP/Ridge. No se seleccionó ninguna configuración con
-los folds de test externos. `results/resultados.csv` se excluye de esta entrega:
-Chayna debe consumir exclusivamente los seis parciales definitivos.
+- Las mejoras describen estos folds oficiales; no establecen causalidad ni
+  sustituyen la comparación global de modelos de la E6.
+- Los tiempos de Holstein incluyen la selección interna y no son comparables
+  directamente con una corrida de MLP sin validación interna.
+- La decisión final del mejor modelo corresponde a la E6, que comparará MLP
+  con GBLUP, Ridge y los demás modelos bajo el mismo contrato.
