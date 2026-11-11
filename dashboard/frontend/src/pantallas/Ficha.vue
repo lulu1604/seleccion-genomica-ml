@@ -4,7 +4,7 @@ import type { Rasgo } from '../api'
 import Estado from '../componentes/Estado.vue'
 import Icono from '../componentes/Icono.vue'
 import { buscarAnimal, cargarEjemplo, rodeo } from '../rodeo'
-import { INICIALES, mayuscula, NOMBRE_ESTABLO, PRIORIDADES, RASGOS, RECOMENDACION, SEGURIDAD } from '../textos'
+import { idCorto, INICIALES, mayuscula, NOMBRE_ESTABLO, PRIORIDADES, RASGOS, RECOMENDACION, SEGURIDAD } from '../textos'
 
 const props = defineProps<{ id: string }>()
 
@@ -50,7 +50,7 @@ function descargar() {
           texto-cargando="Buscando el animal…" @reintentar="cargarEjemplo" />
 
   <div v-else-if="!animal || !puesto" class="estado" role="alert">
-    <strong>No encontramos el animal {{ id }}.</strong>
+    <strong>No encontramos el animal {{ idCorto(id) }}.</strong>
     <span class="sub">Puede que ya no esté en el archivo que estás viendo.</span>
     <a href="#/animales" class="boton boton-oscuro">Ver mis animales</a>
   </div>
@@ -60,7 +60,7 @@ function descargar() {
       <div class="quien">
         <span class="puesto serif">{{ puesto.puesto }}</span>
         <div class="datos">
-          <h1 id="t-animal">Animal {{ animal.id }}</h1>
+          <h1 id="t-animal">Animal {{ idCorto(animal.id) }}</h1>
           <span class="claro">
             {{ animal.tipo ? `${animal.tipo} · ` : '' }}Holstein · puesto {{ puesto.puesto }} de {{ rodeo.animales.length }}
             <template v-if="rodeo.prioridad !== 'balanceado'"> · prioridad {{ nombrePrioridad?.toLowerCase() }}</template>

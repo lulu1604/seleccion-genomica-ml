@@ -7,7 +7,7 @@ import SubirArchivo from '../componentes/SubirArchivo.vue'
 import { enlaceFicha } from '../navegacion'
 import { cargarEjemplo, ordenados, rodeo } from '../rodeo'
 import {
-  claseCategoria, cuantos, FECHA_HOY, GRUPOS, INICIALES, nivelPunto, NOMBRE_ESTABLO, PRIORIDADES, RASGOS,
+  claseCategoria, cuantos, FECHA_HOY, GRUPOS, idCorto, INICIALES, nivelPunto, NOMBRE_ESTABLO, PRIORIDADES, RASGOS,
 } from '../textos'
 
 const MAX_VISTAZO = 12 // columnas de "Tu rodeo de un vistazo"
@@ -23,6 +23,8 @@ const subtitulo = (a: Animal) => (a.tipo ? `${a.tipo} · ${a.etiqueta}` : a.etiq
 
 const top = computed(() => ordenados.value.slice(0, 3))
 const vistazo = computed(() => ordenados.value.slice(0, MAX_VISTAZO))
+// las etiquetas de las columnas van en horizontal si caben (hasta 4 caracteres)
+const etiquetasHorizontales = computed(() => vistazo.value.every((a) => idCorto(a.id).length <= 4))
 const enMovil = computed(() => (verTodosMovil.value ? ordenados.value : ordenados.value.slice(0, EN_MOVIL)))
 
 const grupos = computed(() =>
@@ -96,7 +98,7 @@ const textoAviso = computed(() =>
             <span class="ir"><Icono nombre="flecha" :tamano="16" /></span>
           </span>
           <span class="nombre">
-            <strong>Animal {{ a.id }}</strong>
+            <strong>Animal {{ idCorto(a.id) }}</strong>
             <span class="detalle">{{ subtitulo(a) }}</span>
           </span>
           <span class="chips">
@@ -111,7 +113,7 @@ const textoAviso = computed(() =>
           <span class="fila-arriba">
             <span class="puesto">{{ puesto(a).puesto }}</span>
             <span class="nombre">
-              <strong>Animal {{ a.id }}</strong>
+              <strong>Animal {{ idCorto(a.id) }}</strong>
               <span class="detalle">{{ subtitulo(a) }}</span>
             </span>
             <Icono nombre="flecha" />
@@ -144,14 +146,14 @@ const textoAviso = computed(() =>
           </div>
         </div>
         <div class="desliza">
-          <div class="matriz" :style="{ gridTemplateColumns: `74px repeat(${vistazo.length}, 26px)` }">
+          <div class="matriz" :style="{ gridTemplateColumns: `68px repeat(${vistazo.length}, minmax(24px, 1fr))` }">
             <template v-for="r in RASGOS" :key="r.clave">
               <span class="rasgo">{{ r.nombre }}</span>
               <span v-for="a in vistazo" :key="a.id" class="punto" :class="nivelPunto(a.percentiles[r.clave])"
-                    :title="`Animal ${a.id}: mejor que ${a.percentiles[r.clave]} de cada 100 en ${r.nombre.toLowerCase()}`"></span>
+                    :title="`Animal ${idCorto(a.id)}: mejor que ${a.percentiles[r.clave]} de cada 100 en ${r.nombre.toLowerCase()}`"></span>
             </template>
             <span></span>
-            <a v-for="a in vistazo" :key="a.id" :href="enlaceFicha(a.id)" class="columna">{{ a.id }}</a>
+            <a v-for="a in vistazo" :key="a.id" :href="enlaceFicha(a.id)" class="columna" :class="{ horizontal: etiquetasHorizontales }">{{ idCorto(a.id) }}</a>
           </div>
         </div>
         <span v-if="rodeo.animales.length > MAX_VISTAZO" class="sub">
@@ -171,7 +173,7 @@ const textoAviso = computed(() =>
               <span class="sub">{{ g.categoria }} · {{ cuantos(g.total, 'animal', 'animales') }}</span>
             </span>
             <div class="chips">
-              <a v-for="a in g.animales" :key="a.id" :href="enlaceFicha(a.id)" class="chip chip-id" :class="g.clase">{{ a.id }}</a>
+              <a v-for="a in g.animales" :key="a.id" :href="enlaceFicha(a.id)" class="chip chip-id" :class="g.clase">{{ idCorto(a.id) }}</a>
               <span v-if="g.resto" class="sub">y {{ g.resto }} más</span>
               <span v-if="!g.total" class="sub">Ninguno</span>
             </div>
@@ -191,7 +193,7 @@ const textoAviso = computed(() =>
           <tbody>
             <tr v-for="a in ordenados" :key="a.id">
               <td class="sub">{{ puesto(a).puesto }}</td>
-              <td><a :href="enlaceFicha(a.id)"><strong>Animal {{ a.id }}</strong></a><br /><span class="sub">{{ a.etiqueta }}</span></td>
+              <td><a :href="enlaceFicha(a.id)"><strong>Animal {{ idCorto(a.id) }}</strong></a><br /><span class="sub">{{ a.etiqueta }}</span></td>
               <td><span class="chip" :class="claseCategoria(puesto(a).categoria)">{{ puesto(a).categoria }}</span></td>
               <td v-for="r in RASGOS" :key="r.clave">{{ a.percentiles[r.clave] }}</td>
               <td>{{ puesto(a).accion }}</td>
@@ -267,7 +269,7 @@ const textoAviso = computed(() =>
 .desliza { overflow-x: auto; }
 .matriz { display: grid; gap: 6px 4px; align-items: center; }
 .rasgo { font-size: 12.5px; font-weight: 600; color: var(--texto-medio); }
-.punto { width: 22px; height: 22px; border-radius: 50%; justify-self: center; display: inline-block; }
+.punto { width: 20px; height: 20px; border-radius: 50%; justify-self: center; display: inline-block; }
 .punto-top { background: var(--oscuro); }
 .punto-sobre { background: var(--lavanda); }
 .punto-bajo { background: var(--tierra); }
@@ -276,6 +278,7 @@ const textoAviso = computed(() =>
   font-size: 10px; color: var(--texto-suave); text-decoration: none; justify-self: center;
   writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
 }
+.columna.horizontal { writing-mode: horizontal-tb; transform: none; }
 
 /* grupos */
 .grupos { display: flex; flex-direction: column; gap: 10px; }

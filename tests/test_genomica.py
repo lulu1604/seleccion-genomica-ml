@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from dashboard.backend.app import genomica
 from dashboard.backend.app.genomica import (
     PESOS, RASGOS, ErrorGenotipos, categoria, etiqueta, evaluar, leer_genotipos, nombre_zona,
     percentil,
@@ -138,6 +139,49 @@ def test_leer_genotipos_rechaza_archivos_malos(estropear):
     df = _df(np.ones((3, N_SNP)))
     with pytest.raises(ErrorGenotipos):
         leer_genotipos(estropear(df), SNPS)
+
+
+@pytest.mark.parametrize("quitar, texto", [
+    (["SNP4"], "le falta 1 marcador del ADN de los 20"),
+    (["SNP4", "SNP9", "SNP15"], "le faltan 3 marcadores del ADN de los 20"),
+])
+def test_mensaje_de_marcadores_faltantes_sin_nombres(quitar, texto):
+    df = _df(np.ones((3, N_SNP))).drop(columns=quitar)
+    with pytest.raises(ErrorGenotipos) as error:
+        leer_genotipos(df, SNPS)
+    assert texto in str(error.value)
+    assert "SNP" not in str(error.value)
+
+
+def test_ficha_agrupa_cada_zona_conocida_en_una_fila(paq, monkeypatch):
+    # zona de prueba: marcadores SNP2..SNP5 (posiciones 2 a 5, dentro del bloque de grasa)
+    monkeypatch.setattr(genomica, "ZONAS_CONOCIDAS", [(2, 5, "Zona de prueba", "Gen de prueba")])
+    dentro = list(range(1, 5))
+    filas = [_extremo(paq, "fpro", sube=True), _extremo(paq, "fpro", sube=False)]
+    filas += list(np.random.default_rng(2).integers(0, 3, size=(4, N_SNP)))
+    df = _df(filas)
+    Xc = df[SNPS].to_numpy(dtype=np.float32) - paq["media_snp"]
+    vista = 0
+    for r, nombre in (("fpro", "grasa"), ("mkg", "leche"), ("scs", "ubre sana")):
+        for i, animal in enumerate(evaluar(df, paq)):
+            aporte = Xc[i] * paq[f"coef_{r}"]
+            zonas = animal["zonas"][nombre]
+            de_la_zona = [z for z in zonas if z["zona"] == "Zona de prueba"]
+            assert len(de_la_zona) <= 1
+            for z in de_la_zona:
+                vista += 1
+                assert z["valor"] == pytest.approx(aporte[dentro].sum(), abs=1e-4)
+                assert z["marcador"] == SNPS[dentro[int(np.argmax(np.abs(aporte[dentro])))]]
+            for z in zonas:
+                if z["zona"] != "Zona de prueba":
+                    j = SNPS.index(z["marcador"])
+                    assert j not in dentro
+                    assert z["valor"] == pytest.approx(aporte[j], abs=1e-4)
+            # orden: la suma de la zona compite como una fila más
+            candidatos = np.sort([aporte[dentro].sum()] + [aporte[j] for j in range(N_SNP) if j not in dentro])
+            esperado = list(candidatos[::-1][:3]) + [candidatos[0]]
+            np.testing.assert_allclose([z["valor"] for z in zonas], esperado, atol=1e-4)
+    assert vista > 0
 
 
 def test_aportes_mas_promedio_dan_la_prediccion(paq):

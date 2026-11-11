@@ -55,6 +55,11 @@ export function cuantos(n: number, singular: string, plural: string): string {
   return `${n} ${n === 1 ? singular : plural}`
 }
 
+/** Id para mostrar: sin el prefijo "Anim" (Anim2042 → 2042). La URL y la API usan el id completo. */
+export function idCorto(id: string): string {
+  return id.replace(/^Anim(?=\S)/, '')
+}
+
 export function mayuscula(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }

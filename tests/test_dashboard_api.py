@@ -162,7 +162,8 @@ def test_evaluar_csv_valido_y_con_marcador_faltante(ganadero):
     malo = _genotipos(2).drop(columns="SNP4")
     resp = client.post("/api/evaluar", files={"archivo": ("adn.csv", _csv(malo))})
     assert resp.status_code == 422
-    assert "Faltan 1 marcadores" in resp.json()["detail"]
+    assert "le falta 1 marcador" in resp.json()["detail"]
+    assert "SNP" not in resp.json()["detail"]
 
 
 def test_evaluar_archivo_vacio_o_muy_grande(ganadero, monkeypatch):

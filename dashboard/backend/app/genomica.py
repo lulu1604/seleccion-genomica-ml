@@ -85,6 +85,31 @@ def nombre_zona(posicion: int) -> dict:
     return {"zona": "Otra zona del ADN", "detalle": "Sin gen conocido"}
 
 
+def _zonas_ficha(aporte: np.ndarray, snps: list[str], n_zonas: int = 3) -> list[dict]:
+    """Las n_zonas que más suben y la que más baja.
+
+    Cada zona conocida (ZONAS_CONOCIDAS) cuenta como UNA sola fila: su valor es la
+    suma de los aportes de todos sus marcadores, y "marcador" es el de mayor
+    aporte absoluto dentro de ella. El resto de marcadores va uno por uno.
+    """
+    filas = []
+    dentro = np.zeros(len(aporte), dtype=bool)
+    for desde, hasta, nombre, detalle in ZONAS_CONOCIDAS:
+        tramo = slice(desde - 1, min(hasta, len(aporte)))
+        if tramo.start >= len(aporte):
+            continue
+        dentro[tramo] = True
+        j = tramo.start + int(np.argmax(np.abs(aporte[tramo])))
+        filas.append((float(aporte[tramo].sum()), j, {"zona": nombre, "detalle": detalle}))
+    for j in np.flatnonzero(~dentro):
+        filas.append((float(aporte[j]), int(j), None))
+    filas.sort(key=lambda f: f[0])
+    elegidas = filas[::-1][:n_zonas] + [filas[0]]
+    return [{"marcador": snps[j], **(nombre or nombre_zona(j + 1)),
+             "efecto": "sube" if v >= 0 else "baja", "valor": round(v, 4)}
+            for v, j, nombre in elegidas]
+
+
 def confianza(r: float) -> str:
     return "alto" if r >= 0.75 else "medio" if r >= 0.60 else "bajo"
 
@@ -99,9 +124,11 @@ def leer_genotipos(df: pd.DataFrame, snps: list[str]) -> tuple[list[str], list[s
         raise ErrorGenotipos(f"Máximo {MAX_ANIMALES} animales por archivo.")
     faltan = [s for s in snps if s not in df.columns]
     if faltan:
+        cuantos = (f"le falta {len(faltan)} marcador" if len(faltan) == 1
+                   else f"le faltan {len(faltan):,} marcadores".replace(",", "."))
         raise ErrorGenotipos(
-            f"Faltan {len(faltan)} marcadores del ADN (por ejemplo {', '.join(faltan[:3])}). "
-            "Usa el mismo formato que el archivo de ejemplo.")
+            f"Al archivo {cuantos} del ADN de los {len(snps):,} que necesitamos. ".replace(",", ".")
+            + "Pide al laboratorio el archivo completo o usa el mismo formato que el archivo de ejemplo.")
     valores = df[snps].to_numpy().ravel()
     X = pd.to_numeric(pd.Series(valores), errors="coerce").to_numpy(dtype=np.float32)
     X = X.reshape(len(df), len(snps))
@@ -144,11 +171,7 @@ def evaluar(df: pd.DataFrame, paq: dict, n_zonas: int = 3) -> list[dict]:
         zonas = {}
         for r in RASGOS:
             aporte = SENTIDO[r] * Xc[i] * paq[f"coef_{r}"]
-            orden = np.argsort(aporte)
-            elegidos = list(orden[::-1][:n_zonas]) + [orden[0]]
-            zonas[NOMBRE[r]] = [{"marcador": snps[j], **nombre_zona(j + 1),
-                                 "efecto": "sube" if aporte[j] >= 0 else "baja",
-                                 "valor": round(float(aporte[j]), 4)} for j in elegidos]
+            zonas[NOMBRE[r]] = _zonas_ficha(aporte, snps, n_zonas)
         salida.append({
             "id": ident,
             "tipo": tipos[i],
