@@ -126,7 +126,7 @@ def graficar(resumen, carpeta):
             )
 
             for eje in ejes:
-                eje.legend()      
+                eje.legend(loc="lower right")      
         
         fig.suptitle(f"{escenario} - {rasgo} - {ruido}")
         fig.tight_layout()
