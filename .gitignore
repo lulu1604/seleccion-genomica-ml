@@ -21,6 +21,10 @@ models/
 *.pt
 *.h5
 
+# frontend del dashboard
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
+
 # entorno y basura
 .venv/
 __pycache__/
