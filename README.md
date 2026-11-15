@@ -59,6 +59,61 @@ En las simulaciones se entrena con `fenotipo` y r se mide contra el valor genét
 
 Tests: `pytest tests/ -q`
 
+## Dashboard
+
+Dashboard para el ganadero: dice qué hacer con cada animal según su ADN y estima
+el peso y las medidas de una vaca a partir de dos fotos. Backend FastAPI, frontend
+Vue 3, todo con Docker.
+
+### Requisitos
+
+- Docker Desktop.
+- Los 2 modelos en `models/` (no se suben a git). Se generan o se descargan del
+  **Drive del grupo: carpeta DATA_PROYECTO+/MODELOS**.
+
+| Archivo | Tamaño | Cómo se genera |
+|---|---|---|
+| `models/genomica/ridge_holstein.npz` | 0.7 MB | `python dashboard/backend/preparar_genomica.py` (necesita `data/processed/holstein` y `data/folds`) |
+| `models/vision/ensamble.joblib` | 0.2 MB | `python -m src.vision.entrenar --final` (necesita las 72 fotos; guardado con scikit-learn 1.9.1) |
+
+### Levantar
+
+```bash
+docker compose up --build
+```
+
+Luego abre <http://localhost:8080>. El primer build tarda unos 4 min (descarga
+torch y los pesos de U²-Net y MobileNetV2). Al arrancar, el backend precarga los
+modelos; la primera medición por foto tarda unos 10 s y las siguientes, 2-3 s.
+Para apagarlo: `docker compose down`.
+
+### Desarrollo (sin Docker)
+
+```bash
+# backend, desde la raíz del repo (con el entorno de "Instalación")
+uvicorn dashboard.backend.app.main:app --host 127.0.0.1 --port 8000
+# frontend, en otra terminal
+cd dashboard/frontend
+npm install
+npm run dev
+```
+
+Abre <http://localhost:5173> (Vite manda `/api` al backend en `127.0.0.1:8000`).
+El contrato de la API está en [`dashboard/CONTRATO_API.md`](dashboard/CONTRATO_API.md).
+
+### Pantallas
+
+- **Mis animales**: ranking del rodeo según la prioridad elegida (balanceado, grasa, leche o ubre sana) y qué hacer con cada animal; acepta un CSV de ADN propio.
+- **Ficha**: un animal en detalle: qué tan bueno es en cada rasgo, qué tan seguro es el resultado, la recomendación y las zonas del ADN que más pesaron.
+- **Medir por foto**: con una foto de costado y una desde atrás estima el peso, la altura, el perímetro del tórax y dos largos, con su margen de error.
+- **¿Por qué confiar?**: de cada 10 pares de animales, en cuántos elige bien al mejor; cómo mejora con más animales de referencia, y sus límites.
+
+### Advertencias
+
+- La evaluación genética solo está probada en ganado **Holstein**.
+- La medición por foto es **aproximada** (peso ±84 kg) y se entrenó con solo
+  **72 vacas Horqin**: con otras razas o fotos tomadas de otra forma el error puede ser mayor.
+
 ## Estructura
 
 ```
@@ -70,7 +125,7 @@ src/data/          F1-F2 descarga y QC
 src/models/        F3-F4 GBLUP y modelos ML
 src/evaluation/    F5 métricas, CV, SHAP
 results/           F5 resultados.csv y figuras
-dashboard/         F6 app Streamlit
+dashboard/         F6 dashboard para el ganadero (FastAPI + Vue 3, Docker)
 docs/              F0 glosario, F7 informe
 ```
 
