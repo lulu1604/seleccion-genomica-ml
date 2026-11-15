@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { RUTA_EJEMPLO_EXCEL, RUTA_PLANTILLA } from './api'
 import BarraMovil from './componentes/BarraMovil.vue'
 import Icono from './componentes/Icono.vue'
 import Lateral from './componentes/Lateral.vue'
@@ -24,8 +25,10 @@ onMounted(() => {
         <div v-if="ruta.pantalla === 'animales'" class="pie-oscuro">
           <Icono nombre="subir" :tamano="26" />
           <span class="serif titulo">Evalúa animales nuevos</span>
-          <span class="texto">Sube el archivo con su ADN y te decimos cuáles usar.</span>
+          <span class="texto">Sube la plantilla con su ADN y te decimos cuáles usar.</span>
           <SubirArchivo class="boton-claro" />
+          <a class="enlace-claro" :href="RUTA_PLANTILLA" download>Descargar plantilla de Excel</a>
+          <a class="enlace-claro" :href="RUTA_EJEMPLO_EXCEL" download>Ver ejemplo en Excel</a>
         </div>
         <div v-else-if="ruta.pantalla === 'medir'" class="pie-oscuro">
           <span class="serif titulo">Es una estimación</span>
@@ -56,4 +59,6 @@ onMounted(() => {
 .titulo { font-size: 20px; line-height: 1.15; }
 .texto { font-size: 12.5px; color: var(--sobre-oscuro); }
 .boton-claro { border: 1px solid var(--borde-oscuro); color: var(--tarjeta); }
+.enlace-claro { color: var(--sobre-oscuro); font-size: 12.5px; font-weight: 700; text-align: center; }
+.enlace-claro:hover { color: var(--tarjeta); }
 </style>

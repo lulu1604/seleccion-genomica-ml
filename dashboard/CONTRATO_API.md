@@ -42,7 +42,9 @@ Los usa el frontend. Los errores responden `{"detail": "mensaje para mostrar tal
 |---|---|
 | `GET /api/ejemplo` | `{"demo": true, "total": 12, "animales": [animal]}` con el archivo de ejemplo |
 | `GET /api/ejemplo/archivo` | El CSV de ejemplo como descarga (`ejemplo_adn.csv`) |
-| `POST /api/evaluar` | Multipart con `archivo` (CSV). Igual que `/api/ejemplo` pero `"demo": false`. 422 si el archivo no es válido, 413 si pesa más de 60 MB |
+| `GET /api/plantilla` | Plantilla de Excel vacía (`plantilla_bovigen.xlsx`), ver abajo. 503 si falta el paquete genómico |
+| `GET /api/ejemplo/excel` | La plantilla llena con los 12 animales de ejemplo (`ejemplo_bovigen.xlsx`) |
+| `POST /api/evaluar` | Multipart con `archivo`: la plantilla `.xlsx` o un CSV (se reconoce por el contenido: un `.xlsx` empieza con `PK`). Igual que `/api/ejemplo` pero `"demo": false`. 422 si el archivo no es válido (si no es ni CSV ni Excel: "Sube la plantilla de Excel (.xlsx) o un CSV como el de ejemplo."), 413 si pesa más de 60 MB |
 | `POST /api/medir` | Multipart con `lateral` y `posterior` (fotos). `{"peso": {clave, nombre, valor, error, unidad, min, max}, "medidas": [{clave, nombre, valor, error, unidad}]}`. 422 si no encuentra la vaca, 503 si falta el modelo |
 | `GET /api/medir/ejemplos` | `{"ejemplos": [{id, real_kg, estimado_kg, dentro, foto_lateral}] (vacas 1-3), "todas": [{id, real_kg, estimado_kg, dentro}] (72), "error_kg"}` |
 | `GET /api/medir/foto/{id}/{vista}` | Foto JPG de muestra; `id` 1-3 y `vista` `lat` o `pos` (si no, 404) |
@@ -50,7 +52,7 @@ Los usa el frontend. Los errores responden `{"detail": "mensaje para mostrar tal
 
 Un `animal` es:
 ```
-{"id": "Anim2042", "tipo": "Toro",
+{"id": "Anim2042", "tipo": "Toro", "nombre": "",
  "percentiles": {"grasa": 0-100, "leche": 0-100, "ubre sana": 0-100},
  "etiqueta": "bueno en las 3" | "destaca en …" | "sobre el promedio" | "bajo el promedio",
  "por_prioridad": {"balanceado" | "grasa" | "leche" | "ubre":
@@ -67,3 +69,18 @@ Un `animal` es:
 - `de_cada_10` = `round(10 × (0.5 + asin(r) / π))` con el r medio de ridge en Holstein.
 - `tamanos`: r medio de gblup por escenario (Holstein: promedio de los 3 rasgos);
   nivel Baja < 0.3, Media < 0.6, Alta ≥ 0.6; `ancho` = r / r máximo × 100.
+- `tipo` y `nombre` vienen del archivo (vacíos si no están).
+
+### Plantilla de Excel
+
+Excel aguanta 16,384 columnas y el ADN tiene 42,551 marcadores, así que los marcadores van en filas:
+
+| Hoja | Contenido |
+|---|---|
+| `Instrucciones` | Cómo llenarla, sin términos técnicos |
+| `Animales` | `id_animal`, `tipo` (lista: `Toro`, `Vaca`, `Vaquilla`, o vacío), `nombre` (opcional) |
+| `ADN` | Columna A `marcador` (`SNP1`..`SNP42551`, en el orden del paquete); desde la B, una columna por animal con su `id_animal` en la fila 1 y valores 0/1/2 |
+
+Errores propios del Excel (422): falta la hoja Animales o ADN, un animal sin columna en ADN, una
+columna de ADN que no está en Animales, un `tipo` no válido, o Animales vacía. Marcadores faltantes,
+valores distintos de 0/1/2 e ids repetidos se validan igual que en el CSV.

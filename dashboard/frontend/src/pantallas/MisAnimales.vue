@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RUTA_ARCHIVO_EJEMPLO, type Animal } from '../api'
+import { RUTA_EJEMPLO_EXCEL, RUTA_PLANTILLA, type Animal } from '../api'
 import Estado from '../componentes/Estado.vue'
 import Icono from '../componentes/Icono.vue'
 import SubirArchivo from '../componentes/SubirArchivo.vue'
 import { enlaceFicha } from '../navegacion'
 import { cargarEjemplo, ordenados, rodeo } from '../rodeo'
 import {
-  claseCategoria, cuantos, FECHA_HOY, GRUPOS, idCorto, INICIALES, nivelPunto, NOMBRE_ESTABLO, PRIORIDADES, RASGOS,
+  AYUDA_PLANTILLA, claseCategoria, cuantos, FECHA_HOY, GRUPOS, idCorto, INICIALES, nivelPunto, nombreAnimal,
+  NOMBRE_ESTABLO, PRIORIDADES, RASGOS,
 } from '../textos'
 
 const MAX_VISTAZO = 12 // columnas de "Tu rodeo de un vistazo"
@@ -68,12 +69,11 @@ const textoAviso = computed(() =>
     <div v-if="rodeo.aviso" class="aviso aviso-error" role="alert">
       <Icono nombre="alerta" />
       <span>{{ rodeo.aviso }}</span>
-      <a :href="RUTA_ARCHIVO_EJEMPLO" download>Ver el formato del archivo de ejemplo</a>
+      <a :href="RUTA_PLANTILLA" download>Descargar plantilla de Excel</a>
     </div>
     <div class="aviso" role="status">
       <Icono nombre="info" />
       <span>{{ textoAviso }}</span>
-      <a :href="RUTA_ARCHIVO_EJEMPLO" download>Descargar archivo de ejemplo</a>
     </div>
 
     <section class="tarjeta mejores" aria-labelledby="t-mejores">
@@ -89,6 +89,13 @@ const textoAviso = computed(() =>
         </div>
         <SubirArchivo class="boton-lavanda solo-movil subir-movil" texto="Subir" />
       </div>
+      <div class="plantilla">
+        <span>{{ AYUDA_PLANTILLA }}</span>
+        <span class="enlaces">
+          <a :href="RUTA_PLANTILLA" download>Descargar plantilla de Excel</a>
+          <a :href="RUTA_EJEMPLO_EXCEL" download>Ver ejemplo en Excel</a>
+        </span>
+      </div>
       <span class="sub">{{ textoPrioridad }}</span>
 
       <div class="rejilla-3 solo-escritorio">
@@ -98,7 +105,7 @@ const textoAviso = computed(() =>
             <span class="ir"><Icono nombre="flecha" :tamano="16" /></span>
           </span>
           <span class="nombre">
-            <strong>Animal {{ idCorto(a.id) }}</strong>
+            <strong>{{ nombreAnimal(a) }}</strong>
             <span class="detalle">{{ subtitulo(a) }}</span>
           </span>
           <span class="chips">
@@ -113,7 +120,7 @@ const textoAviso = computed(() =>
           <span class="fila-arriba">
             <span class="puesto">{{ puesto(a).puesto }}</span>
             <span class="nombre">
-              <strong>Animal {{ idCorto(a.id) }}</strong>
+              <strong>{{ nombreAnimal(a) }}</strong>
               <span class="detalle">{{ subtitulo(a) }}</span>
             </span>
             <Icono nombre="flecha" />
@@ -150,7 +157,7 @@ const textoAviso = computed(() =>
             <template v-for="r in RASGOS" :key="r.clave">
               <span class="rasgo">{{ r.nombre }}</span>
               <span v-for="a in vistazo" :key="a.id" class="punto" :class="nivelPunto(a.percentiles[r.clave])"
-                    :title="`Animal ${idCorto(a.id)}: mejor que ${a.percentiles[r.clave]} de cada 100 en ${r.nombre.toLowerCase()}`"></span>
+                    :title="`${nombreAnimal(a)}: mejor que ${a.percentiles[r.clave]} de cada 100 en ${r.nombre.toLowerCase()}`"></span>
             </template>
             <span></span>
             <a v-for="a in vistazo" :key="a.id" :href="enlaceFicha(a.id)" class="columna" :class="{ horizontal: etiquetasHorizontales }">{{ idCorto(a.id) }}</a>
@@ -193,7 +200,7 @@ const textoAviso = computed(() =>
           <tbody>
             <tr v-for="a in ordenados" :key="a.id">
               <td class="sub">{{ puesto(a).puesto }}</td>
-              <td><a :href="enlaceFicha(a.id)"><strong>Animal {{ idCorto(a.id) }}</strong></a><br /><span class="sub">{{ a.etiqueta }}</span></td>
+              <td><a :href="enlaceFicha(a.id)"><strong>{{ nombreAnimal(a) }}</strong></a><br /><span class="sub">{{ a.etiqueta }}</span></td>
               <td><span class="chip" :class="claseCategoria(puesto(a).categoria)">{{ puesto(a).categoria }}</span></td>
               <td v-for="r in RASGOS" :key="r.clave">{{ a.percentiles[r.clave] }}</td>
               <td>{{ puesto(a).accion }}</td>
@@ -224,6 +231,12 @@ const textoAviso = computed(() =>
 
 .cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .controles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plantilla {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px;
+  padding: 10px 14px; border-radius: 14px; background: var(--app); font-size: 12.5px; color: var(--texto-medio);
+}
+.plantilla .enlaces { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.plantilla a { font-weight: 700; min-height: 24px; display: inline-flex; align-items: center; }
 .prioridad {
   display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px 0 14px;
   border-radius: 999px; background: var(--app); font-size: 13px; font-weight: 600; color: var(--texto-medio);

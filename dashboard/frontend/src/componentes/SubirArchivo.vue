@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Botón "Subir archivo": elige un CSV y lo manda a evaluar.
+// Botón "Subir archivo": elige la plantilla de Excel (o un CSV) y la manda a evaluar.
 import { rodeo, subirArchivo } from '../rodeo'
 
 defineProps<{ texto?: string }>()
@@ -15,6 +15,6 @@ function elegido(evento: Event) {
 <template>
   <label class="boton subir" :aria-disabled="rodeo.analizando">
     {{ texto ?? 'Subir archivo' }}
-    <input type="file" accept=".csv,text/csv" :disabled="rodeo.analizando" @change="elegido" />
+    <input type="file" accept=".xlsx,.csv" :disabled="rodeo.analizando" @change="elegido" />
   </label>
 </template>

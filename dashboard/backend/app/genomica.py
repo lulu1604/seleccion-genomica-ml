@@ -150,6 +150,7 @@ def evaluar(df: pd.DataFrame, paq: dict, n_zonas: int = 3) -> list[dict]:
     """Una entrada por animal con percentiles, categoría por prioridad y zonas del ADN."""
     snps = paq["snps"].tolist()
     ids, tipos, X = leer_genotipos(df, snps)
+    nombres = df["nombre"].fillna("").astype(str).tolist() if "nombre" in df.columns else [""] * len(ids)
     Xc = X - paq["media_snp"]
     pred = {r: Xc @ paq[f"coef_{r}"] + paq[f"media_pred_{r}"] for r in RASGOS}
     pct = {r: percentil(SENTIDO[r] * pred[r], SENTIDO[r] * paq[f"ref_{r}"]) for r in RASGOS}
@@ -175,6 +176,7 @@ def evaluar(df: pd.DataFrame, paq: dict, n_zonas: int = 3) -> list[dict]:
         salida.append({
             "id": ident,
             "tipo": tipos[i],
+            "nombre": nombres[i],
             "percentiles": {NOMBRE[r]: round(p[r]) for r in RASGOS},
             "etiqueta": etiqueta(p),
             "por_prioridad": por_prioridad,

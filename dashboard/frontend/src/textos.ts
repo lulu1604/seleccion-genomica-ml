@@ -60,6 +60,15 @@ export function idCorto(id: string): string {
   return id.replace(/^Anim(?=\S)/, '')
 }
 
+/** Cómo se nombra un animal en pantalla: "Lucerito · V-001" si tiene nombre, si no "Animal 2042". */
+export function nombreAnimal(animal: { id: string; nombre?: string }): string {
+  const nombre = animal.nombre?.trim()
+  return nombre ? `${nombre} · ${idCorto(animal.id)}` : `Animal ${idCorto(animal.id)}`
+}
+
+export const AYUDA_PLANTILLA =
+  'Llena la hoja Animales y pega en la hoja ADN los resultados que te mandó el laboratorio.'
+
 export function mayuscula(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }

@@ -6,5 +6,6 @@ numpy
 scipy
 pillow
 joblib
+openpyxl==3.1.5
 scikit-learn==1.9.1
 rembg[cpu]==2.0.87
