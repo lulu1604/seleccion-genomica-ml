@@ -1,21 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Rasgo } from '../api'
+import ChipTipo from '../componentes/ChipTipo.vue'
 import Estado from '../componentes/Estado.vue'
 import Icono from '../componentes/Icono.vue'
 import { buscarAnimal, cargarEjemplo, rodeo } from '../rodeo'
-import { idCorto, INICIALES, mayuscula, NOMBRE_ESTABLO, PRIORIDADES, RASGOS, RECOMENDACION, SEGURIDAD } from '../textos'
+import {
+  etiquetaDe, idCorto, INICIALES, mayuscula, nombreAnimal, NOMBRE_ESTABLO, NOTA_TORO, PRIORIDADES, RASGOS,
+  rasgoEnFrase, recomendacion, SEGURIDAD, sexoDe,
+} from '../textos'
 
 const props = defineProps<{ id: string }>()
 
 const animal = computed(() => buscarAnimal(props.id))
 const puesto = computed(() => animal.value?.por_prioridad[rodeo.prioridad])
 const nombrePrioridad = computed(() => PRIORIDADES.find((p) => p.valor === rodeo.prioridad)?.nombre)
+const sexo = computed(() => (animal.value ? sexoDe(animal.value) : 'neutro'))
+const hembra = computed(() => sexo.value === 'hembra')
+const consejo = computed(() => (animal.value && puesto.value ? recomendacion(puesto.value.categoria, animal.value) : null))
 
 const rasgos = computed(() =>
   RASGOS.map((r) => {
     const p = animal.value?.percentiles[r.clave] ?? 0
-    return { ...r, p, llenas: Math.round(p / 10), seguro: SEGURIDAD[r.clave] }
+    return { ...r, queMide: r.queMide[sexo.value], p, llenas: Math.round(p / 10), seguro: SEGURIDAD[r.clave] }
   }),
 )
 
@@ -25,15 +32,14 @@ const mejor = computed<Rasgo>(() => {
   return RASGOS.map((r) => r.clave).reduce((m, r) => (p[r] > p[m] ? r : m))
 })
 
+// barras divergentes: escala común a todas las filas del rasgo (incluido "Resto de su ADN");
+// la más larga ocupa media pista (50 %), hacia la derecha si sube y hacia la izquierda si baja
 const zonas = computed(() => {
   const lista = animal.value?.zonas[mejor.value] ?? []
   const maximo = Math.max(...lista.map((z) => Math.abs(z.valor)), 1e-9)
-  return lista.map((z) => ({
-    ...z,
-    numero: z.marcador.replace(/\D/g, ''),
-    ancho: Math.max(4, Math.round((100 * Math.abs(z.valor)) / maximo)),
-  }))
+  return lista.map((z) => ({ ...z, ancho: Math.max(1, (50 * Math.abs(z.valor)) / maximo) }))
 })
+const totalSube = computed(() => zonas.value.reduce((suma, z) => suma + z.valor, 0) >= 0)
 
 function descargar() {
   window.print()
@@ -60,20 +66,21 @@ function descargar() {
       <div class="quien">
         <span class="puesto serif">{{ puesto.puesto }}</span>
         <div class="datos">
-          <h1 id="t-animal">Animal {{ idCorto(animal.id) }}</h1>
+          <span class="tipo"><ChipTipo :tipo="animal.tipo" /></span>
+          <h1 id="t-animal">{{ nombreAnimal(animal) }}</h1>
           <span class="claro">
-            {{ animal.tipo ? `${animal.tipo} · ` : '' }}Holstein · puesto {{ puesto.puesto }} de {{ rodeo.animales.length }}
+            Holstein · puesto {{ puesto.puesto }} de {{ rodeo.animales.length }}
             <template v-if="rodeo.prioridad !== 'balanceado'"> · prioridad {{ nombrePrioridad?.toLowerCase() }}</template>
           </span>
           <div class="chips">
             <span class="chip chip-claro">{{ puesto.categoria }}</span>
-            <span class="chip chip-oscuro">{{ mayuscula(animal.etiqueta) }}</span>
+            <span class="chip chip-oscuro">{{ mayuscula(etiquetaDe(animal)) }}</span>
           </div>
         </div>
       </div>
       <div class="recomendacion">
-        <span class="rotulo">Recomendación</span>
-        <span class="serif texto">{{ RECOMENDACION[puesto.accion] }}</span>
+        <span class="rotulo">Recomendación · {{ consejo?.accion }}</span>
+        <span class="serif texto">{{ consejo?.texto }}</span>
         <div class="no-imprimir">
           <button type="button" class="boton boton-lavanda" @click="descargar">
             <Icono nombre="descargar" :tamano="16" />Descargar ficha
@@ -81,6 +88,11 @@ function descargar() {
         </div>
       </div>
     </section>
+
+    <div v-if="sexo === 'toro'" class="aviso" role="note">
+      <Icono nombre="info" />
+      <span>{{ NOTA_TORO }}</span>
+    </div>
 
     <div class="rejilla-3">
       <section v-for="r in rasgos" :key="r.clave" class="tarjeta rasgo">
@@ -98,15 +110,17 @@ function descargar() {
 
     <section class="tarjeta" aria-labelledby="t-porque">
       <div class="encabezado">
-        <h2 id="t-porque">¿Por qué salió tan bueno en {{ mejor }}?</h2>
-        <span class="sub">Las partes de su ADN que más lo empujaron hacia arriba o hacia abajo</span>
+        <h2 id="t-porque">¿Por qué salió tan {{ hembra ? 'buena' : 'bueno' }} en {{ rasgoEnFrase(mejor, sexo) }}?</h2>
+        <span class="sub">Cada barra es una parte de su ADN que empujó su nota hacia arriba o hacia abajo. Todas juntas dan su resultado.</span>
       </div>
       <div class="zonas">
-        <div v-for="(z, i) in zonas" :key="i" class="zona">
+        <div v-for="(z, i) in zonas" :key="i" class="zona" :class="{ resto: z.resto }">
           <span class="zona-texto">
-            <strong>{{ z.zona }}</strong>
+            <span class="zona-nombre">
+              <strong>{{ z.zona }}</strong>
+              <span v-if="z.gen" class="chip chip-gen">{{ z.gen }}</span>
+            </span>
             <span class="sub">{{ z.detalle }}</span>
-            <span class="marcador">marcador {{ z.numero }}</span>
           </span>
           <div class="pista" aria-hidden="true">
             <div class="relleno" :class="z.efecto" :style="{ width: `${z.ancho}%` }"></div>
@@ -114,6 +128,7 @@ function descargar() {
           <span class="efecto" :class="z.efecto">{{ z.efecto }}</span>
         </div>
       </div>
+      <p class="total">Total: <strong>{{ totalSube ? 'sube' : 'baja' }} su nota</strong></p>
     </section>
   </div>
 </template>
@@ -126,6 +141,8 @@ function descargar() {
   display: flex; align-items: center; justify-content: center; font-size: 28px;
 }
 .datos { display: flex; flex-direction: column; gap: 4px; }
+.tipo:empty { display: none; }
+.tipo { margin-bottom: 2px; }
 .datos h1 { font-size: 32px; line-height: 1.1; }
 .claro { font-size: 13px; color: var(--sobre-oscuro); }
 .datos .chips { margin-top: 4px; }
@@ -147,11 +164,20 @@ function descargar() {
 .zona { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 240px) 56px; gap: 12px; align-items: center; }
 .zona-texto { display: flex; flex-direction: column; min-width: 0; }
 .zona-texto .sub { font-size: 12px; }
-.marcador { font-size: 10.5px; color: var(--tierra); }
-.pista { height: 14px; border-radius: 7px; background: var(--app); overflow: hidden; }
-.relleno { height: 100%; border-radius: 7px; }
-.relleno.sube { background: var(--oscuro); }
-.relleno.baja { background: var(--tierra); }
+.zona-nombre { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.chip-gen { font-size: 10.5px; padding: 2px 8px; background: var(--lavanda-suave); color: var(--oscuro); }
+.zona.resto { padding-top: 12px; border-top: 1px dashed var(--tierra); }
+
+/* barra divergente: línea central; sube hacia la derecha (oscuro), baja hacia la izquierda (tierra) */
+.pista { position: relative; height: 14px; border-radius: 7px; background: var(--app); }
+.pista::before {
+  content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px;
+  margin-left: -1px; background: var(--borde-oscuro); border-radius: 1px;
+}
+.relleno { position: absolute; top: 0; bottom: 0; }
+.relleno.sube { left: 50%; background: var(--oscuro); border-radius: 0 7px 7px 0; }
+.relleno.baja { right: 50%; background: var(--tierra); border-radius: 7px 0 0 7px; }
+.total { margin: 4px 0 0; padding-top: 10px; border-top: 1px solid var(--linea); font-size: 13.5px; }
 .efecto { font-weight: 700; text-align: right; }
 .efecto.baja { color: var(--texto-suave); }
 

@@ -16,6 +16,9 @@ export interface Zona {
   marcador: string
   zona: string
   detalle: string
+  gen: string
+  cromosoma: number
+  resto: boolean
   efecto: 'sube' | 'baja'
   valor: number
 }
@@ -23,6 +26,7 @@ export interface Zona {
 export interface Animal {
   id: string
   tipo: string
+  nombre: string
   percentiles: Record<Rasgo, number>
   etiqueta: string
   por_prioridad: Record<Prioridad, Puesto>
@@ -95,6 +99,8 @@ function formulario(campos: Record<string, File>): FormData {
 }
 
 export const RUTA_ARCHIVO_EJEMPLO = '/api/ejemplo/archivo'
+export const RUTA_PLANTILLA = '/api/plantilla'
+export const RUTA_EJEMPLO_EXCEL = '/api/ejemplo/excel'
 
 export const api = {
   ejemplo: () => pedir<Evaluacion>('/api/ejemplo'),

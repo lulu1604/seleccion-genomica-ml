@@ -10,10 +10,11 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from .datos import FUENTES, a_registros, leer, raiz, resumen
 from .genomica import ErrorGenotipos, cargar_paquete, evaluar
+from .plantilla import crear_ejemplo_excel, crear_plantilla, leer_excel
 
 # el logger de uvicorn ya sale en `docker compose logs`
 log = logging.getLogger("uvicorn.error")
@@ -36,6 +37,8 @@ RESUMEN_E6 = "results/resumen_e6.csv"
 METRICAS_CNN = "results/vision/metricas_cnn.csv"
 PREDICCIONES_CNN = "results/vision/predicciones_cnn.csv"
 MAX_BYTES = 60 * 1024 * 1024
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+NI_CSV_NI_EXCEL = "Sube la plantilla de Excel (.xlsx) o un CSV como el de ejemplo."
 N_HOLSTEIN = 5024  # animales del escenario holstein (escenario_n en results/parciales)
 
 # claves de src/vision/predecir.py -> nombre para personas, en el orden de la pantalla
@@ -98,11 +101,15 @@ def _paquete(ruta: str) -> dict:
     return cargar_paquete(ruta)
 
 
-def _evaluar(df: pd.DataFrame, demo: bool) -> dict:
+def _paquete_o_503() -> dict:
     try:
-        paq = _paquete(str(raiz() / PAQUETE))
+        return _paquete(str(raiz() / PAQUETE))
     except FileNotFoundError:
         raise HTTPException(503, "La evaluación genética no está disponible")
+
+
+def _evaluar(df: pd.DataFrame, demo: bool) -> dict:
+    paq = _paquete_o_503()
     try:
         animales = evaluar(df, paq)
     except ErrorGenotipos as e:
@@ -134,6 +141,52 @@ def ejemplo_archivo():
     return FileResponse(_ruta_ejemplo(), media_type="text/csv", filename="ejemplo_adn.csv")
 
 
+def _excel(contenido: bytes, nombre: str) -> Response:
+    return Response(contenido, media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
+@lru_cache(maxsize=2)
+def _plantilla(ruta_paquete: str) -> bytes:
+    return crear_plantilla(_paquete(ruta_paquete)["snps"].tolist())
+
+
+@lru_cache(maxsize=2)
+def _ejemplo_excel(ruta_paquete: str, ruta_ejemplo: str, _version: int) -> bytes:
+    """Se arma una vez (~3 s); `_version` = mtime del CSV de ejemplo."""
+    return crear_ejemplo_excel(pd.read_csv(ruta_ejemplo), _paquete(ruta_paquete)["snps"].tolist())
+
+
+@app.get("/api/plantilla")
+def plantilla():
+    _paquete_o_503()
+    return _excel(_plantilla(str(raiz() / PAQUETE)), "plantilla_bovigen.xlsx")
+
+
+@app.get("/api/ejemplo/excel")
+def ejemplo_excel():
+    ruta = _ruta_ejemplo()
+    _paquete_o_503()
+    contenido = _ejemplo_excel(str(raiz() / PAQUETE), str(ruta), ruta.stat().st_mtime_ns)
+    return _excel(contenido, "ejemplo_bovigen.xlsx")
+
+
+def _leer_tabla(contenido: bytes) -> pd.DataFrame:
+    """El .xlsx se reconoce por su contenido (empieza con PK); si no, se lee como CSV."""
+    if contenido[:2] == b"PK":
+        try:
+            return leer_excel(contenido, _paquete_o_503()["snps"].tolist())
+        except ErrorGenotipos as e:
+            raise HTTPException(422, str(e))
+    try:
+        df = pd.read_csv(io.BytesIO(contenido))
+    except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError):
+        raise HTTPException(422, NI_CSV_NI_EXCEL)
+    if "id_animal" not in df.columns:
+        raise HTTPException(422, NI_CSV_NI_EXCEL)
+    return df
+
+
 def _leer_subida(archivo: UploadFile) -> bytes:
     contenido = archivo.file.read(MAX_BYTES + 1)
     if len(contenido) > MAX_BYTES:
@@ -143,12 +196,7 @@ def _leer_subida(archivo: UploadFile) -> bytes:
 
 @app.post("/api/evaluar")
 def evaluar_archivo(archivo: UploadFile = File(...)):
-    contenido = _leer_subida(archivo)
-    try:
-        df = pd.read_csv(io.BytesIO(contenido))
-    except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError):
-        raise HTTPException(422, "No se pudo leer el archivo. Debe ser un CSV como el de ejemplo.")
-    return _evaluar(df, demo=False)
+    return _evaluar(_leer_tabla(_leer_subida(archivo)), demo=False)
 
 
 # ---- para el ganadero: medición por foto ----

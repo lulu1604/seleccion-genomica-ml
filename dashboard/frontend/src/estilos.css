@@ -160,6 +160,16 @@ h2 { font-size: 22px; }
 .cat-regular { background: var(--tierra-suave); color: var(--texto); }
 .cat-bajo { background: transparent; color: var(--texto-medio); border: 1.5px solid var(--borde-oscuro); }
 a.cat-elite:hover { color: var(--tarjeta); }
+/* tipo de animal: va primero y se distingue de la categoría (mayúsculas, lavanda claro) */
+.chip-tipo {
+  background: var(--lavanda-suave);
+  color: var(--oscuro);
+  font-size: 12.5px;
+  padding: 5px 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.letra-tipo { font-size: 10px; font-weight: 700; color: var(--texto-suave); }
 
 /* ---- avisos y estados ---- */
 .aviso {
