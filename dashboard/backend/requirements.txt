@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pandas
+numpy
+scipy
+pillow
+joblib
+scikit-learn==1.9.1
+rembg[cpu]==2.0.87

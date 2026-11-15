@@ -1,0 +1,15 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: dashboard/backend/Dockerfile
+    volumes:
+      - ./models:/datos/models:ro
+      - ./results:/datos/results:ro
+      - ./data/sample:/datos/data/sample:ro
+  frontend:
+    build: ./dashboard/frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend

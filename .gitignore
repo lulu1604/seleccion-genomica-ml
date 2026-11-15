@@ -12,11 +12,18 @@ data/processed/*
 *.tbi
 *.parquet
 
+# resultados consolidados: se arman con --consolidar
+results/resultados.csv
+
 # modelos pesados
 models/
 *.pkl
 *.pt
 *.h5
+
+# frontend del dashboard
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
 
 # entorno y basura
 .venv/

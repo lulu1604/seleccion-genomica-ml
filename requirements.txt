@@ -15,3 +15,7 @@ plotly
 streamlit
 jupyter
 pytest
+fastapi
+uvicorn
+httpx
+python-multipart
