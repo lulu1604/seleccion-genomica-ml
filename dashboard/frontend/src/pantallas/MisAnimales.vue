@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RUTA_EJEMPLO_EXCEL, RUTA_PLANTILLA, type Animal } from '../api'
+import { RUTA_EJEMPLO_EXCEL, RUTA_PLANTILLA, type Animal, type Categoria } from '../api'
+import ChipTipo from '../componentes/ChipTipo.vue'
 import Estado from '../componentes/Estado.vue'
 import Icono from '../componentes/Icono.vue'
 import SubirArchivo from '../componentes/SubirArchivo.vue'
 import { enlaceFicha } from '../navegacion'
 import { cargarEjemplo, ordenados, rodeo } from '../rodeo'
 import {
-  AYUDA_PLANTILLA, claseCategoria, cuantos, FECHA_HOY, GRUPOS, idCorto, INICIALES, nivelPunto, nombreAnimal,
-  NOMBRE_ESTABLO, PRIORIDADES, RASGOS,
+  AYUDA_PLANTILLA, claseCategoria, cuantos, etiquetaDe, FECHA_HOY, GRUPOS, idCorto, INICIALES, nivelPunto,
+  nombreAnimal, NOMBRE_ESTABLO, PRIORIDADES, RASGOS, RECOMENDACIONES, recomendacion, sexoDe, TIPOS, tipoDe,
 } from '../textos'
 
 const MAX_VISTAZO = 12 // columnas de "Tu rodeo de un vistazo"
@@ -20,7 +21,28 @@ const verTodosMovil = ref(false)
 
 const textoPrioridad = computed(() => PRIORIDADES.find((p) => p.valor === rodeo.prioridad)?.texto)
 const puesto = (a: Animal) => a.por_prioridad[rodeo.prioridad]
-const subtitulo = (a: Animal) => (a.tipo ? `${a.tipo} · ${a.etiqueta}` : a.etiqueta)
+const accion = (a: Animal) => recomendacion(puesto(a).categoria, a).accion
+const nombreTipo = (a: Animal) => {
+  const t = tipoDe(a)
+  return t ? TIPOS[t].nombre : ''
+}
+const letraTipo = (a: Animal) => {
+  const t = tipoDe(a)
+  return t ? TIPOS[t].letra : ''
+}
+const hayTipos = computed(() => rodeo.animales.some((a) => tipoDe(a)))
+
+/** Qué hacer en un grupo: la acción de hembra y/o la de toro, solo para los tipos presentes. */
+function accionesGrupo(categoria: Categoria, animales: Animal[]): string[] {
+  const base = animales.length ? animales : rodeo.animales
+  const toros = base.some((a) => sexoDe(a) === 'toro')
+  const hembras = base.some((a) => sexoDe(a) === 'hembra')
+  const sinTipo = base.some((a) => sexoDe(a) === 'neutro')
+  const opciones = RECOMENDACIONES[categoria]
+  if (!toros) return [opciones.hembra.accion]
+  if (!hembras && !sinTipo) return [opciones.toro.accion]
+  return [`${opciones.hembra.accion} (${hembras ? 'hembras' : 'sin tipo'})`, `${opciones.toro.accion} (toros)`]
+}
 
 const top = computed(() => ordenados.value.slice(0, 3))
 const vistazo = computed(() => ordenados.value.slice(0, MAX_VISTAZO))
@@ -31,13 +53,16 @@ const enMovil = computed(() => (verTodosMovil.value ? ordenados.value : ordenado
 const grupos = computed(() =>
   GRUPOS.map((g) => {
     const animales = ordenados.value.filter((a) => puesto(a).categoria === g.categoria)
-    return { ...g, animales: animales.slice(0, MAX_CHIPS), resto: Math.max(0, animales.length - MAX_CHIPS), total: animales.length }
+    return {
+      ...g, acciones: accionesGrupo(g.categoria, animales),
+      animales: animales.slice(0, MAX_CHIPS), resto: Math.max(0, animales.length - MAX_CHIPS), total: animales.length,
+    }
   }),
 )
 
 const textoAviso = computed(() =>
   rodeo.demo
-    ? `Mostrando ${rodeo.animales.length} animales de ejemplo. Sube tu archivo para ver los tuyos.`
+    ? `Mostrando ${rodeo.animales.length} toros reales del estudio. Sube tu plantilla con tus animales (toros, vacas o vaquillas) para verlos.`
     : `Mostrando ${cuantos(rodeo.animales.length, 'animal', 'animales')} de tu archivo.`,
 )
 </script>
@@ -106,11 +131,12 @@ const textoAviso = computed(() =>
           </span>
           <span class="nombre">
             <strong>{{ nombreAnimal(a) }}</strong>
-            <span class="detalle">{{ subtitulo(a) }}</span>
+            <span class="detalle">{{ etiquetaDe(a) }}</span>
           </span>
           <span class="chips">
+            <ChipTipo :tipo="a.tipo" />
             <span class="chip chip-tarjeta">{{ puesto(a).categoria }}</span>
-            <span class="chip chip-tarjeta">{{ puesto(a).accion }}</span>
+            <span class="chip chip-tarjeta">{{ accion(a) }}</span>
           </span>
         </a>
       </div>
@@ -121,13 +147,14 @@ const textoAviso = computed(() =>
             <span class="puesto">{{ puesto(a).puesto }}</span>
             <span class="nombre">
               <strong>{{ nombreAnimal(a) }}</strong>
-              <span class="detalle">{{ subtitulo(a) }}</span>
+              <span class="detalle">{{ etiquetaDe(a) }}</span>
             </span>
             <Icono nombre="flecha" />
           </span>
           <span class="chips">
+            <ChipTipo :tipo="a.tipo" />
             <span class="chip chip-tarjeta">{{ puesto(a).categoria }}</span>
-            <span class="chip chip-tarjeta">{{ puesto(a).accion }}</span>
+            <span class="chip chip-tarjeta">{{ accion(a) }}</span>
           </span>
         </a>
         <button v-if="ordenados.length > EN_MOVIL" type="button" class="boton boton-borde"
@@ -161,7 +188,12 @@ const textoAviso = computed(() =>
             </template>
             <span></span>
             <a v-for="a in vistazo" :key="a.id" :href="enlaceFicha(a.id)" class="columna" :class="{ horizontal: etiquetasHorizontales }">{{ idCorto(a.id) }}</a>
+            <template v-if="hayTipos">
+              <span></span>
+              <span v-for="a in vistazo" :key="a.id" class="letra-tipo columna-tipo" :title="nombreTipo(a)">{{ letraTipo(a) }}</span>
+            </template>
           </div>
+          <span v-if="hayTipos" class="sub clave-tipos">T: toro · V: vaca · Vq: vaquilla</span>
         </div>
         <span v-if="rodeo.animales.length > MAX_VISTAZO" class="sub">
           Se muestran los {{ MAX_VISTAZO }} primeros según tu prioridad.
@@ -176,11 +208,14 @@ const textoAviso = computed(() =>
         <div class="grupos">
           <div v-for="g in grupos" :key="g.categoria" class="grupo">
             <span class="grupo-nombre">
-              <strong>{{ g.accion }}</strong>
+              <strong v-for="t in g.acciones" :key="t">{{ t }}</strong>
               <span class="sub">{{ g.categoria }} · {{ cuantos(g.total, 'animal', 'animales') }}</span>
             </span>
             <div class="chips">
-              <a v-for="a in g.animales" :key="a.id" :href="enlaceFicha(a.id)" class="chip chip-id" :class="g.clase">{{ idCorto(a.id) }}</a>
+              <a v-for="a in g.animales" :key="a.id" :href="enlaceFicha(a.id)" class="chip chip-id" :class="g.clase"
+                 :title="[nombreTipo(a), nombreAnimal(a)].filter(Boolean).join(' · ')">
+                <span v-if="letraTipo(a)" class="letra">{{ letraTipo(a) }}</span>{{ idCorto(a.id) }}
+              </a>
               <span v-if="g.resto" class="sub">y {{ g.resto }} más</span>
               <span v-if="!g.total" class="sub">Ninguno</span>
             </div>
@@ -194,16 +229,17 @@ const textoAviso = computed(() =>
       <div class="desliza">
         <table>
           <thead>
-            <tr><th scope="col">#</th><th scope="col">Animal</th><th scope="col">Grupo</th>
+            <tr><th scope="col">#</th><th scope="col">Tipo</th><th scope="col">Animal</th><th scope="col">Grupo</th>
               <th scope="col">Grasa</th><th scope="col">Leche</th><th scope="col">Ubre</th><th scope="col">Qué hacer</th></tr>
           </thead>
           <tbody>
             <tr v-for="a in ordenados" :key="a.id">
               <td class="sub">{{ puesto(a).puesto }}</td>
-              <td><a :href="enlaceFicha(a.id)"><strong>{{ nombreAnimal(a) }}</strong></a><br /><span class="sub">{{ a.etiqueta }}</span></td>
+              <td><ChipTipo :tipo="a.tipo" /></td>
+              <td><a :href="enlaceFicha(a.id)"><strong>{{ nombreAnimal(a) }}</strong></a><br /><span class="sub">{{ etiquetaDe(a) }}</span></td>
               <td><span class="chip" :class="claseCategoria(puesto(a).categoria)">{{ puesto(a).categoria }}</span></td>
               <td v-for="r in RASGOS" :key="r.clave">{{ a.percentiles[r.clave] }}</td>
-              <td>{{ puesto(a).accion }}</td>
+              <td>{{ accion(a) }}</td>
             </tr>
           </tbody>
         </table>
@@ -214,7 +250,9 @@ const textoAviso = computed(() =>
     <section class="tarjeta solo-movil" aria-labelledby="m-rodeo">
       <h2 id="m-rodeo">Qué hacer con tu rodeo</h2>
       <div v-for="g in grupos" :key="g.categoria" class="grupo-movil">
-        <span class="grupo-nombre"><strong>{{ g.accion }}</strong><span class="sub">{{ g.categoria }}</span></span>
+        <span class="grupo-nombre">
+          <strong v-for="t in g.acciones" :key="t">{{ t }}</strong><span class="sub">{{ g.categoria }}</span>
+        </span>
         <span class="chip cuenta" :class="g.clase">{{ g.total }}</span>
       </div>
     </section>
@@ -292,6 +330,8 @@ const textoAviso = computed(() =>
   writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
 }
 .columna.horizontal { writing-mode: horizontal-tb; transform: none; }
+.columna-tipo { justify-self: center; margin-top: -4px; }
+.clave-tipos { font-size: 11px; }
 
 /* grupos */
 .grupos { display: flex; flex-direction: column; gap: 10px; }
@@ -301,7 +341,8 @@ const textoAviso = computed(() =>
 }
 .grupo-nombre { display: flex; flex-direction: column; font-size: 13px; }
 .grupo-nombre .sub { font-size: 11.5px; }
-.chip-id { padding: 6px 12px; }
+.chip-id { padding: 6px 12px; display: inline-flex; align-items: baseline; gap: 5px; }
+.chip-id .letra { font-size: 10px; opacity: 0.7; }
 
 /* ranking */
 table { width: 100%; border-collapse: collapse; min-width: 620px; font-size: 13.5px; }

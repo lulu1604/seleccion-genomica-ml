@@ -1,21 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Rasgo } from '../api'
+import ChipTipo from '../componentes/ChipTipo.vue'
 import Estado from '../componentes/Estado.vue'
 import Icono from '../componentes/Icono.vue'
 import { buscarAnimal, cargarEjemplo, rodeo } from '../rodeo'
-import { idCorto, INICIALES, mayuscula, nombreAnimal, NOMBRE_ESTABLO, PRIORIDADES, RASGOS, RECOMENDACION, SEGURIDAD } from '../textos'
+import {
+  etiquetaDe, idCorto, INICIALES, mayuscula, nombreAnimal, NOMBRE_ESTABLO, NOTA_TORO, PRIORIDADES, RASGOS,
+  rasgoEnFrase, recomendacion, SEGURIDAD, sexoDe,
+} from '../textos'
 
 const props = defineProps<{ id: string }>()
 
 const animal = computed(() => buscarAnimal(props.id))
 const puesto = computed(() => animal.value?.por_prioridad[rodeo.prioridad])
 const nombrePrioridad = computed(() => PRIORIDADES.find((p) => p.valor === rodeo.prioridad)?.nombre)
+const sexo = computed(() => (animal.value ? sexoDe(animal.value) : 'neutro'))
+const hembra = computed(() => sexo.value === 'hembra')
+const consejo = computed(() => (animal.value && puesto.value ? recomendacion(puesto.value.categoria, animal.value) : null))
 
 const rasgos = computed(() =>
   RASGOS.map((r) => {
     const p = animal.value?.percentiles[r.clave] ?? 0
-    return { ...r, p, llenas: Math.round(p / 10), seguro: SEGURIDAD[r.clave] }
+    return { ...r, queMide: r.queMide[sexo.value], p, llenas: Math.round(p / 10), seguro: SEGURIDAD[r.clave] }
   }),
 )
 
@@ -60,20 +67,21 @@ function descargar() {
       <div class="quien">
         <span class="puesto serif">{{ puesto.puesto }}</span>
         <div class="datos">
+          <span class="tipo"><ChipTipo :tipo="animal.tipo" /></span>
           <h1 id="t-animal">{{ nombreAnimal(animal) }}</h1>
           <span class="claro">
-            {{ animal.tipo ? `${animal.tipo} · ` : '' }}Holstein · puesto {{ puesto.puesto }} de {{ rodeo.animales.length }}
+            Holstein · puesto {{ puesto.puesto }} de {{ rodeo.animales.length }}
             <template v-if="rodeo.prioridad !== 'balanceado'"> · prioridad {{ nombrePrioridad?.toLowerCase() }}</template>
           </span>
           <div class="chips">
             <span class="chip chip-claro">{{ puesto.categoria }}</span>
-            <span class="chip chip-oscuro">{{ mayuscula(animal.etiqueta) }}</span>
+            <span class="chip chip-oscuro">{{ mayuscula(etiquetaDe(animal)) }}</span>
           </div>
         </div>
       </div>
       <div class="recomendacion">
-        <span class="rotulo">Recomendación</span>
-        <span class="serif texto">{{ RECOMENDACION[puesto.accion] }}</span>
+        <span class="rotulo">Recomendación · {{ consejo?.accion }}</span>
+        <span class="serif texto">{{ consejo?.texto }}</span>
         <div class="no-imprimir">
           <button type="button" class="boton boton-lavanda" @click="descargar">
             <Icono nombre="descargar" :tamano="16" />Descargar ficha
@@ -81,6 +89,11 @@ function descargar() {
         </div>
       </div>
     </section>
+
+    <div v-if="sexo === 'toro'" class="aviso" role="note">
+      <Icono nombre="info" />
+      <span>{{ NOTA_TORO }}</span>
+    </div>
 
     <div class="rejilla-3">
       <section v-for="r in rasgos" :key="r.clave" class="tarjeta rasgo">
@@ -98,8 +111,8 @@ function descargar() {
 
     <section class="tarjeta" aria-labelledby="t-porque">
       <div class="encabezado">
-        <h2 id="t-porque">¿Por qué salió tan bueno en {{ mejor }}?</h2>
-        <span class="sub">Las partes de su ADN que más lo empujaron hacia arriba o hacia abajo</span>
+        <h2 id="t-porque">¿Por qué salió tan {{ hembra ? 'buena' : 'bueno' }} en {{ rasgoEnFrase(mejor, sexo) }}?</h2>
+        <span class="sub">Las partes de su ADN que más {{ hembra ? 'la' : 'lo' }} empujaron hacia arriba o hacia abajo</span>
       </div>
       <div class="zonas">
         <div v-for="(z, i) in zonas" :key="i" class="zona">
@@ -126,6 +139,8 @@ function descargar() {
   display: flex; align-items: center; justify-content: center; font-size: 28px;
 }
 .datos { display: flex; flex-direction: column; gap: 4px; }
+.tipo:empty { display: none; }
+.tipo { margin-bottom: 2px; }
 .datos h1 { font-size: 32px; line-height: 1.1; }
 .claro { font-size: 13px; color: var(--sobre-oscuro); }
 .datos .chips { margin-top: 4px; }
