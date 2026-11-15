@@ -23,8 +23,10 @@ def segmentador_rembg(modelo: str = "u2net"):
     por proceso y se reutiliza.
 
     La primera vez rembg descarga U2-Net (~176 MB) desde GitHub, por defecto a
-    ~/.rembg/models/u2net/u2net.onnx. Para no descargarlo (p. ej. en Docker),
-    copiar u2net.onnx a una carpeta y definir U2NET_HOME=<esa carpeta>."""
+    ~/.u2net/u2net.onnx (en Windows: C:\\Users\\<usuario>\\.u2net\\u2net.onnx).
+    Algunas versiones nuevas de rembg lo guardan en ~/.rembg/models/u2net/.
+    Para no descargarlo (p. ej. en Docker), copiar u2net.onnx a una carpeta y
+    definir U2NET_HOME=<esa carpeta>: funciona igual en ambas versiones."""
     from rembg import new_session, remove  # import aqui: los tests no lo necesitan
     sesion = new_session(modelo)
     return lambda img: np.asarray(remove(img, session=sesion, only_mask=True)) > 127

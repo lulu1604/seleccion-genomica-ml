@@ -1,6 +1,6 @@
 # Contexto visión (medidas corporales desde foto) — Joe
 
-Actualizado: 7 de noviembre de 2026. Módulo independiente del genómico: no usa
+Actualizado: 9 de noviembre de 2026. Módulo independiente del genómico: no usa
 SNPs, ni `src/models/`, ni los folds de `data/folds/`.
 
 ## 1. Qué hice
@@ -127,6 +127,18 @@ python -m src.vision.entrenar --metodo cnn --salida results/vision/historico/met
   `models/vision/ensamble.joblib` (~0.2 MB, no se sube al repo). El error que
   se reporta sigue siendo el de la validación cruzada, que el paquete copia de
   `results/vision/metricas_cnn.csv`.
+- **Versión de scikit-learn.** El `.joblib` solo carga sin avisos con la
+  versión con que se creó, y queda anotada en el paquete (clave `sklearn`).
+  El modelo que usa el dashboard se generó el 9 de noviembre de 2026 con
+  **scikit-learn 1.9.1**, que requiere Python 3.11 o superior. Es idéntico al
+  anterior, hecho con 1.7.2: mismos α, mismos coeficientes y mismas
+  predicciones.
+- **U²-Net.** rembg lo descarga la primera vez (~176 MB) en
+  `~/.u2net/u2net.onnx`; en la PC de Joe quedó en
+  `C:\Users\josep\.u2net\u2net.onnx`. Algunas versiones nuevas de rembg usan
+  `~/.rembg/models/u2net/`. Para el Docker basta copiar `u2net.onnx` a una
+  carpeta y definir `U2NET_HOME=<esa carpeta>`, que funciona en ambas
+  versiones y evita la descarga.
 - **`predecir()`** (`src/vision/predecir.py`) recibe la foto lateral y la
   posterior de una vaca nueva y repite los pasos del entrenamiento: foto a
   224×224, features de MobileNetV2, silueta con U²-Net, los dos Ridge y su
