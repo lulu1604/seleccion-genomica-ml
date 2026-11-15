@@ -20,10 +20,30 @@ NOMBRE = {"fpro": "grasa", "mkg": "leche", "scs": "ubre sana"}
 # En SCS (RZS) un valor alto significa MENOS células somáticas, o sea ubre más sana
 # (Zhang et al. 2015, Tabla 1: SCS con media 102.3 y DE 11.7). Por eso no se invierte.
 SENTIDO = {"fpro": 1.0, "mkg": 1.0, "scs": 1.0}
-# Única zona con gen identificado: el pico de grasa y leche (SNP25070-SNP25140) cae al
-# inicio del cromosoma 14, igual que en la Figura S1 de Zhang et al. 2015, y tiene
-# efectos opuestos en grasa y leche, la firma de DGAT1.
+# Respaldo sin mapa: el pico de grasa y leche (SNP25070-SNP25140) cae al inicio del
+# cromosoma 14, igual que en la Figura S1 de Zhang et al. 2015, y tiene efectos opuestos
+# en grasa y leche, la firma de DGAT1.
 ZONAS_CONOCIDAS = [(25070, 25140, "Zona del cromosoma 14", "Probablemente el gen DGAT1, conocido por subir la grasa")]
+
+# Con mapa (paq["cromosoma"], paq["mb"], de results/mapa_snp.csv): genes de la leche
+# conocidos cerca de los picos del Ridge. Posiciones aproximadas en Mb (UMD3.1).
+# "Probablemente" = pico a <~1 Mb del gen; "posiblemente" = gen candidato por verificar.
+GENES = [
+    {"cromosoma": 14, "desde": 0.0, "hasta": 3.5, "gen": "DGAT1", "detalle": {
+        "fpro": "Probablemente el gen DGAT1, que arma la grasa de la leche",
+        "mkg": "Probablemente el gen DGAT1: sube la grasa, pero baja un poco los litros",
+        "scs": "Probablemente el gen DGAT1, que casi no influye en la ubre"}},
+    {"cromosoma": 5, "desde": 91.5, "hasta": 95.5, "gen": "MGST1", "detalle": {
+        "_": "Probablemente el gen MGST1, ligado a la grasa de la leche"}},
+    {"cromosoma": 20, "desde": 30.5, "hasta": 34.0, "gen": "GHR", "detalle": {
+        "_": "Probablemente el gen GHR (hormona del crecimiento), ligado a la leche y la grasa"}},
+    {"cromosoma": 6, "desde": 86.0, "hasta": 90.0, "gen": "caseínas", "detalle": {
+        "_": "Cerca de los genes de las caseínas, las proteínas de la leche"}},
+    {"cromosoma": 27, "desde": 35.5, "hasta": 37.5, "gen": "AGPAT6", "detalle": {
+        "_": "Posiblemente el gen AGPAT6, ligado a la grasa de la leche"}},
+    {"cromosoma": 19, "desde": 50.5, "hasta": 53.0, "gen": "FASN", "detalle": {
+        "_": "Posiblemente el gen FASN, que fabrica grasas de la leche"}},
+]
 PESOS = {
     "balanceado": {"fpro": 1 / 3, "mkg": 1 / 3, "scs": 1 / 3},
     "grasa": {"fpro": 0.6, "mkg": 0.2, "scs": 0.2},
@@ -85,29 +105,64 @@ def nombre_zona(posicion: int) -> dict:
     return {"zona": "Otra zona del ADN", "detalle": "Sin gen conocido"}
 
 
-def _zonas_ficha(aporte: np.ndarray, snps: list[str], n_zonas: int = 3) -> list[dict]:
-    """Las n_zonas que más suben y la que más baja.
+def _zonas_ficha(aporte: np.ndarray, snps: list[str], n_zonas: int = 3,
+                 rasgo: str = "fpro", paq: dict | None = None) -> list[dict]:
+    """Las n_zonas que más suben, la que más baja y una fila final "Resto de su ADN".
 
-    Cada zona conocida (ZONAS_CONOCIDAS) cuenta como UNA sola fila: su valor es la
-    suma de los aportes de todos sus marcadores, y "marcador" es el de mayor
-    aporte absoluto dentro de ella. El resto de marcadores va uno por uno.
+    Una zona conocida cuenta como UNA sola fila: su valor es la suma de los aportes
+    de todos sus marcadores, y "marcador" es el de mayor aporte absoluto dentro de ella.
+    Con mapa, las zonas conocidas son las ventanas de GENES y cada fila dice su
+    cromosoma; sin mapa, se usa ZONAS_CONOCIDAS (por número de marcador).
+    La fila "resto" suma todo lo que no se muestra, así la cuenta cuadra:
+    suma de las filas = suma de todos los aportes.
     """
+    hay_mapa = paq is not None and "cromosoma" in paq and "mb" in paq
     filas = []
     dentro = np.zeros(len(aporte), dtype=bool)
-    for desde, hasta, nombre, detalle in ZONAS_CONOCIDAS:
-        tramo = slice(desde - 1, min(hasta, len(aporte)))
-        if tramo.start >= len(aporte):
-            continue
-        dentro[tramo] = True
-        j = tramo.start + int(np.argmax(np.abs(aporte[tramo])))
-        filas.append((float(aporte[tramo].sum()), j, {"zona": nombre, "detalle": detalle}))
+    if hay_mapa:
+        cromo, mb = paq["cromosoma"], paq["mb"]
+        for g in GENES:
+            sel = np.flatnonzero((cromo == g["cromosoma"]) & (mb >= g["desde"]) & (mb <= g["hasta"]))
+            if len(sel) == 0:
+                continue
+            dentro[sel] = True
+            j = int(sel[np.argmax(np.abs(aporte[sel]))])
+            detalle = g["detalle"].get(rasgo, g["detalle"].get("_"))
+            filas.append((float(aporte[sel].sum()), j,
+                          {"zona": f"Zona del cromosoma {g['cromosoma']}", "detalle": detalle,
+                           "gen": g["gen"], "cromosoma": int(g["cromosoma"])}))
+    else:
+        for desde, hasta, nombre, detalle in ZONAS_CONOCIDAS:
+            tramo = slice(desde - 1, min(hasta, len(aporte)))
+            if tramo.start >= len(aporte):
+                continue
+            dentro[tramo] = True
+            j = tramo.start + int(np.argmax(np.abs(aporte[tramo])))
+            filas.append((float(aporte[tramo].sum()), j,
+                          {"zona": nombre, "detalle": detalle, "gen": "DGAT1", "cromosoma": 14}))
     for j in np.flatnonzero(~dentro):
         filas.append((float(aporte[j]), int(j), None))
     filas.sort(key=lambda f: f[0])
-    elegidas = filas[::-1][:n_zonas] + [filas[0]]
-    return [{"marcador": snps[j], **(nombre or nombre_zona(j + 1)),
-             "efecto": "sube" if v >= 0 else "baja", "valor": round(v, 4)}
-            for v, j, nombre in elegidas]
+    suben = filas[::-1][:n_zonas]
+    baja = [f for f in filas[:1] if f not in suben]
+    elegidas = suben + baja
+
+    def describir(j: int, info: dict | None) -> dict:
+        if info is not None:
+            return info
+        if hay_mapa:
+            return {"zona": f"Zona del cromosoma {int(paq['cromosoma'][j])}",
+                    "detalle": "Sin gen identificado", "gen": "", "cromosoma": int(paq["cromosoma"][j])}
+        return {**nombre_zona(j + 1), "gen": "", "cromosoma": 0}
+
+    salida = [{"marcador": snps[j], **describir(j, info),
+               "efecto": "sube" if v >= 0 else "baja", "valor": round(v, 4), "resto": False}
+              for v, j, info in elegidas]
+    resto = float(aporte.sum()) - sum(v for v, _, _ in elegidas)
+    salida.append({"marcador": "", "zona": "Resto de su ADN",
+                   "detalle": "Miles de zonas pequeñas sumadas", "gen": "", "cromosoma": 0,
+                   "efecto": "sube" if resto >= 0 else "baja", "valor": round(resto, 4), "resto": True})
+    return salida
 
 
 def confianza(r: float) -> str:
@@ -172,7 +227,7 @@ def evaluar(df: pd.DataFrame, paq: dict, n_zonas: int = 3) -> list[dict]:
         zonas = {}
         for r in RASGOS:
             aporte = SENTIDO[r] * Xc[i] * paq[f"coef_{r}"]
-            zonas[NOMBRE[r]] = _zonas_ficha(aporte, snps, n_zonas)
+            zonas[NOMBRE[r]] = _zonas_ficha(aporte, snps, n_zonas, rasgo=r, paq=paq)
         salida.append({
             "id": ident,
             "tipo": tipos[i],

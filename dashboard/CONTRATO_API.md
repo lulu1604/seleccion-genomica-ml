@@ -58,8 +58,27 @@ Un `animal` es:
  "por_prioridad": {"balanceado" | "grasa" | "leche" | "ubre":
                    {"puntaje": 0-100, "categoria", "accion", "puesto"}},
  "zonas": {"grasa" | "leche" | "ubre sana":
-           [{"marcador", "zona", "detalle", "efecto": "sube" | "baja", "valor"}]}}
+           [{"marcador", "zona", "detalle", "gen", "cromosoma", "resto": false,
+             "efecto": "sube" | "baja", "valor"}, …,
+            {"marcador": "", "zona": "Resto de su ADN", "detalle": "Miles de zonas pequeñas sumadas",
+             "gen": "", "cromosoma": 0, "resto": true, "efecto", "valor"}]}}
 ```
+
+Zonas de la ficha (por rasgo): las 3 que más suben, la que más baja (si no está ya entre
+las que suben) y al final la fila `resto`, con la suma de todo lo que no se muestra. Así
+la suma de `valor` de todas las filas = aporte total del ADN a ese rasgo.
+
+- `zona`: "Zona del cromosoma N" (con mapa de marcadores en el paquete; sin mapa,
+  "Otra zona del ADN" o la zona conocida del cromosoma 14).
+- `gen`: gen conocido de la zona (`DGAT1`, `MGST1`, `GHR`, `caseínas`, `AGPAT6`, `FASN`) o
+  `""`. Los marcadores de un gen conocido van juntos en UNA fila, con `detalle` propio de
+  cada rasgo (p. ej. DGAT1 en leche: "sube la grasa, pero baja un poco los litros").
+  Sin gen: `detalle` = "Sin gen identificado".
+- `cromosoma`: 1-29, o 0 si no se sabe (sin mapa) y en la fila `resto`.
+- `resto`: `true` solo en la última fila.
+- `marcador`: el de mayor aporte de la fila (vacío en `resto`); el frontend no lo muestra.
+- El mapa sale de `results/mapa_snp.csv` (`snp, cromosoma, mb_aprox`), que arma
+  `dashboard/backend/estimar_mapa.py` y lee `preparar_genomica.py`.
 
 - Medidas, en este orden: Peso (`peso_kg`), Altura a la cruz (`altura_cruz_cm`),
   Perímetro del tórax (`perimetro_toracico_cm`), Largo del cuerpo (`largo_oblicuo_cm`),

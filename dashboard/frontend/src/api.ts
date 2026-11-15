@@ -16,6 +16,9 @@ export interface Zona {
   marcador: string
   zona: string
   detalle: string
+  gen: string
+  cromosoma: number
+  resto: boolean
   efecto: 'sube' | 'baja'
   valor: number
 }

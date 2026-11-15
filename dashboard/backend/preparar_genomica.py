@@ -68,6 +68,16 @@ def main():
         paq.update({f"coef_{r}": coef, f"media_pred_{r}": np.array(media_pred),
                     f"ref_{r}": pred_te.astype(np.float64), f"r_fold1_{r}": np.array(r_te)})
 
+    # mapa aproximado de los marcadores (cromosoma y Mb), si ya se generó con estimar_mapa.py
+    ruta_mapa = RAIZ / "results" / "mapa_snp.csv"
+    if ruta_mapa.is_file():
+        mapa = pd.read_csv(ruta_mapa).set_index("snp").loc[list(snps)]
+        paq["cromosoma"] = mapa["cromosoma"].to_numpy(np.int8)
+        paq["mb"] = mapa["mb_aprox"].to_numpy(np.float32)
+        print(f"Mapa de marcadores incluido ({ruta_mapa.relative_to(RAIZ)})")
+    else:
+        print("Sin results/mapa_snp.csv: la ficha no mostrará cromosomas (corre estimar_mapa.py)")
+
     salida = RAIZ / "models" / "genomica" / "ridge_holstein.npz"
     salida.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(salida, **paq)
