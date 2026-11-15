@@ -1,7 +1,10 @@
 """API de solo lectura del dashboard BOVIGEN. Ver dashboard/CONTRATO_API.md."""
 import io
+import logging
 import math
 import tempfile
+import threading
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
@@ -12,7 +15,19 @@ from fastapi.responses import FileResponse
 from .datos import FUENTES, a_registros, leer, raiz, resumen
 from .genomica import ErrorGenotipos, cargar_paquete, evaluar
 
-app = FastAPI(title="BOVIGEN API")
+# el logger de uvicorn ya sale en `docker compose logs`
+log = logging.getLogger("uvicorn.error")
+
+
+@asynccontextmanager
+async def _al_iniciar(app: FastAPI):
+    """Precarga en un hilo aparte: el servidor responde de inmediato."""
+    app.state.precarga = threading.Thread(target=_precargar, name="precarga", daemon=True)
+    app.state.precarga.start()
+    yield
+
+
+app = FastAPI(title="BOVIGEN API", lifespan=_al_iniciar)
 
 PAQUETE = "models/genomica/ridge_holstein.npz"
 EJEMPLO = "data/sample/genotipos_ejemplo.csv"
@@ -142,6 +157,42 @@ def _predictor():
     """Importa predecir() recién al usarla: así el arranque y los tests no cargan torch."""
     from src.vision.predecir import predecir
     return predecir
+
+
+def _cargar_vision() -> None:
+    """Deja en memoria lo que usa predecir(): el ensamble, U²-Net y MobileNetV2.
+
+    Revisa el archivo antes de importar: si falta el modelo no se carga torch.
+    """
+    ruta = raiz() / MODELO_VISION
+    if not ruta.is_file():
+        raise FileNotFoundError(f"no existe {MODELO_VISION}")
+    from src.vision.cnn import _mobilenet
+    from src.vision.predecir import cargar_modelo
+    from src.vision.silueta import segmentador_rembg
+
+    paquete = cargar_modelo(str(ruta))  # misma clave de caché que usa predecir()
+    segmentador_rembg()
+    _mobilenet(paquete["preentrenada"])
+
+
+def _precargar() -> None:
+    """Carga lo pesado al arrancar para que la primera medición no tarde ~50 s.
+
+    Nunca lanza: si algo falta, lo deja en el log y el endpoint responde 503 como siempre.
+    """
+    pasos = {"paquete genómico": lambda: _paquete(str(raiz() / PAQUETE)),
+             "medidor por foto": _cargar_vision}
+    errores = []
+    for nombre, paso in pasos.items():
+        try:
+            paso()
+        except Exception as e:  # noqa: BLE001 - la precarga no debe tumbar la app
+            errores.append(f"{nombre}: {type(e).__name__}: {e}")
+    if errores:
+        log.warning("precarga incompleta (%s)", "; ".join(errores))
+    else:
+        log.info("precarga lista")
 
 
 def _medida(clave: str, nombre: str, unidad: str, pred: dict) -> dict:

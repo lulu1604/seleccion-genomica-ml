@@ -1,6 +1,8 @@
 """Tests del backend del dashboard (solo lectura de CSV)."""
 import io
+import logging
 import statistics
+import sys
 
 import numpy as np
 import pandas as pd
@@ -236,6 +238,36 @@ def test_medir_sin_modelo_da_503(ganadero):
     resp = client.post("/api/medir", files=FOTOS)
     assert resp.status_code == 503
     assert resp.json()["detail"] == "El medidor por foto no está disponible"
+
+
+def _arrancar(caplog):
+    """Arranca la app de verdad (con su lifespan) y espera a que termine la precarga."""
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    with TestClient(app) as client:
+        assert client.get("/api/ejemplo").status_code == 200
+        app.state.precarga.join(timeout=30)
+        assert not app.state.precarga.is_alive()
+
+
+def test_arranca_sin_modelo_de_vision_y_sin_cargar_torch(ganadero, monkeypatch, caplog):
+    # si la precarga intentara importar la visión (y con ella torch), fallaría con ImportError
+    for modulo in ("torch", "src.vision.cnn", "src.vision.predecir", "src.vision.silueta"):
+        monkeypatch.setitem(sys.modules, modulo, None)
+    main._paquete.cache_clear()
+    _arrancar(caplog)
+    assert "precarga incompleta" in caplog.text
+    assert "FileNotFoundError" in caplog.text and main.MODELO_VISION in caplog.text
+    assert "ImportError" not in caplog.text
+    # la genómica sí quedó precargada y medir responde 503 como siempre
+    assert main._paquete.cache_info().currsize == 1
+    client, _ = ganadero
+    assert client.post("/api/medir", files=FOTOS).status_code == 503
+
+
+def test_precarga_lista_cuando_esta_todo(ganadero, monkeypatch, caplog):
+    monkeypatch.setattr(main, "_cargar_vision", lambda: None)
+    _arrancar(caplog)
+    assert "precarga lista" in caplog.text
 
 
 def _metricas_cnn(raiz):
