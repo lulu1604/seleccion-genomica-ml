@@ -1,6 +1,6 @@
 # Contexto visión (medidas corporales desde foto) — Joe
 
-Actualizado: 9 de noviembre de 2026. Módulo independiente del genómico: no usa
+Actualizado: 17 de noviembre de 2026. Módulo independiente del genómico: no usa
 SNPs, ni `src/models/`, ni los folds de `data/folds/`.
 
 ## 1. Qué hice
@@ -143,9 +143,43 @@ python -m src.vision.entrenar --metodo cnn --salida results/vision/historico/met
   posterior de una vaca nueva y repite los pasos del entrenamiento: foto a
   224×224, features de MobileNetV2, silueta con U²-Net, los dos Ridge y su
   promedio. Devuelve las 5 medidas y su error esperado, por ejemplo
-  ±84 kg en peso. Si no encuentra la vaca en una foto, avisa con un error claro.
-  Desde la terminal:
+  ±84 kg en peso. Desde la terminal:
   `python -m src.vision.predecir --lateral <foto> --posterior <foto>`.
+- **Fotos que no sirven.** `predecir()` lanza `ValueError` con un mensaje para
+  el ganadero, y el backend lo muestra tal cual (HTTP 422):
+  - *"No se encontró la vaca en la foto de costado…"* si la silueta ocupa
+    menos del 5 % de la foto. En las 144 fotos del dataset la vaca ocupa entre
+    10 % y 40 %; en una foto sin vaca (cielo, pared), U²-Net marca menos del
+    0.1 %. Antes de esta regla, una foto de puro cielo daba 359.5 kg.
+  - *"No se pudo abrir la foto desde atrás. Usa una foto JPG o PNG."* para
+    archivos que no son imagen o están dañados, como una HEIC de iPhone.
+    Antes daba error 500 y la pantalla decía "No pudimos conectar con el
+    servidor".
+  - Las 72 vacas del dataset se siguen midiendo todas: la regla no rechaza
+    ninguna. Una foto de otro animal (un perro, un caballo) sí da un número:
+    el modelo no sabe distinguir especies.
+
+### Lo que ve el ganadero (pantallas del dashboard)
+
+- **"Medir por foto"** (`POST /api/medir`). Muestra el peso y el rango "puede
+  estar entre X y Y", que es la estimación ± el RMSE del peso (±83.8 kg), y las
+  otras 4 medidas, cada una con su ± RMSE. Para la vaca 1 de muestra: 491 kg,
+  entre 407 y 575 kg.
+- **"Así le fue con vacas que ya pesamos"** (`GET /api/medir/ejemplos`). Sale
+  de `results/vision/predicciones_cnn.csv`, con predicciones hechas sin haber
+  visto a la vaca. "Dentro del margen" significa error ≤ 83.8 kg: pasa en
+  **42 de las 72 vacas**. De las 3 vacas de muestra, la 1 y la 2 quedan
+  dentro, y la 3 fuera (450 kg reales, 549 estimados).
+- **"¿Por qué confiar?"** (`GET /api/confianza`). Muestra el error de la foto
+  redondeado: "el peso puede variar unos 84 kg y la altura unos 7 cm".
+- **Si en una demo se mide la vaca 1 de muestra**, la pantalla da 491 kg,
+  pero su tarjeta de ejemplo dice 482 kg. No es un error. El modelo del
+  dashboard se entrenó con las 72 vacas, incluida la 1, mientras que la
+  tarjeta muestra la predicción hecha sin haberla visto. Para una demo honesta
+  conviene usar fotos de una vaca que no sea del dataset.
+- **Modo demo.** Si falta `results/vision/metricas_cnn.csv`, el dashboard usa
+  `data/sample/vision_demo.csv`, que ahora tiene los valores reales
+  redondeados. Antes traía números inventados mucho mejores (±38 kg, r 0.86).
 - **Por qué no se endereza la foto nueva.** La regla "posterior horizontal →
   girar 90°" corrige un defecto de este dataset. Una foto nueva tomada en
   horizontal puede estar bien, así que por defecto no se gira. Sí se corrige la

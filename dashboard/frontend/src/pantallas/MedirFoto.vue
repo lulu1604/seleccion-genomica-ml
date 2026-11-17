@@ -37,6 +37,8 @@ async function calcular() {
   try {
     resultado.value = await api.medir(fotos.lateral.archivo, fotos.posterior.archivo)
   } catch (e) {
+    // sin esto quedaría a la vista el peso de la medición anterior junto al error
+    resultado.value = null
     error.value = e instanceof ErrorApi ? e.message : 'Algo salió mal. Intenta de nuevo.'
   } finally {
     midiendo.value = false
