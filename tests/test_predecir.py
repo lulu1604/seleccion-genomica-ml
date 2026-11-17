@@ -56,9 +56,29 @@ def test_predecir_devuelve_5_medidas_finitas(ruta_modelo):
 
 
 def test_predecir_sin_vaca_da_error_claro(ruta_modelo):
-    with pytest.raises(ValueError, match="No se encontro la vaca en la foto lateral"):
+    with pytest.raises(ValueError, match="No se encontró la vaca en la foto de costado"):
         predecir.predecir(MUESTRA / "1_lat.jpg", MUESTRA / "1_pos.jpg", ruta_modelo,
                           segmentar=segmentar_vacio)
+
+
+def segmentar_pixeles_sueltos(img):
+    """Lo que hace U2-Net con una foto sin vaca: marca unos pocos pixeles."""
+    m = np.zeros((img.height, img.width), dtype=bool)
+    m[100:103, 100:103] = True
+    return m
+
+
+def test_predecir_con_pixeles_sueltos_no_inventa_una_vaca(ruta_modelo):
+    with pytest.raises(ValueError, match="No se encontró la vaca en la foto de costado"):
+        predecir.predecir(MUESTRA / "1_lat.jpg", MUESTRA / "1_pos.jpg", ruta_modelo,
+                          segmentar=segmentar_pixeles_sueltos)
+
+
+def test_foto_que_no_se_puede_abrir_da_error_claro(ruta_modelo, tmp_path):
+    rota = tmp_path / "foto.jpg"
+    rota.write_bytes(b"no soy una foto")             # como una HEIC o un archivo dañado
+    with pytest.raises(ValueError, match="No se pudo abrir la foto desde atrás. Usa una foto JPG o PNG"):
+        predecir.predecir(MUESTRA / "1_lat.jpg", rota, ruta_modelo, segmentar=segmentar_falso)
 
 
 def test_enderezar_solo_si_se_pide(tmp_path):

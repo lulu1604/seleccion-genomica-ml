@@ -19,7 +19,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from src.data.imagenes import TAMANO_SALIDA, enderezar_posterior
 from src.vision.cnn import extraer_features
@@ -27,7 +27,12 @@ from src.vision.dataset import _foto_a_tensor
 from src.vision.silueta import geometria, limpiar, segmentador_rembg
 
 RUTA_MODELO = "models/vision/ensamble.joblib"
-COMO_TOMARLA = {"lateral": "de costado", "posterior": "desde atras"}
+# Los mismos nombres que ve el ganadero en la pantalla "Medir por foto".
+NOMBRE_FOTO = {"lateral": "de costado", "posterior": "desde atrás"}
+# En las 144 fotos del dataset la vaca ocupa entre el 10 % y el 40 % de la
+# imagen. En una foto sin vaca (cielo, pared, negro) U2-Net marca solo unos
+# pixeles sueltos (< 0.1 %). Por debajo del 5 % no hay vaca que medir.
+AREA_MINIMA = 0.05
 
 
 @lru_cache(maxsize=4)
@@ -49,8 +54,15 @@ def preparar_foto(ruta, posterior: bool = False, enderezar: bool = False) -> Ima
     Mongolia: una foto nueva tomada en horizontal puede estar bien, asi que
     solo se aplica si se pide (`enderezar=True`, para fotos de ese dataset).
     """
-    with Image.open(ruta) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
+    vista = NOMBRE_FOTO["posterior" if posterior else "lateral"]
+    try:
+        with Image.open(ruta) as img:
+            img = ImageOps.exif_transpose(img).convert("RGB")
+    except FileNotFoundError:
+        raise
+    except (UnidentifiedImageError, OSError):
+        # p. ej. una foto HEIC de iPhone o un archivo dañado
+        raise ValueError(f"No se pudo abrir la foto {vista}. Usa una foto JPG o PNG.") from None
     if posterior and enderezar:
         img = enderezar_posterior(img)
     return img.resize(TAMANO_SALIDA)
@@ -58,10 +70,12 @@ def preparar_foto(ruta, posterior: bool = False, enderezar: bool = False) -> Ima
 
 def _silueta(img: Image.Image, vista: str, segmentar) -> np.ndarray:
     m = segmentar(img)
-    if not np.any(m):
-        raise ValueError(f"No se encontro la vaca en la foto {vista}. Usa una foto "
-                         f"con el animal entero y {COMO_TOMARLA[vista]}.")
-    return geometria(limpiar(m))
+    if np.any(m):
+        m = limpiar(m)
+    if m.mean() < AREA_MINIMA:
+        raise ValueError(f"No se encontró la vaca en la foto {NOMBRE_FOTO[vista]}. "
+                         "Usa una foto con el animal entero y bien visible.")
+    return geometria(m)
 
 
 def predecir(ruta_lateral, ruta_posterior, ruta_modelo=RUTA_MODELO,
