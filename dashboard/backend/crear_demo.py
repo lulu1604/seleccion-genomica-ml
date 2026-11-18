@@ -45,12 +45,14 @@ def shap():
 
 
 def vision():
+    # Redondeo de los valores reales de results/vision/metricas_cnn.csv, para que
+    # el modo demo nunca muestre el medidor por foto mejor de lo que es.
     return pd.DataFrame({
         "medida": ["largo_oblicuo_cm", "altura_cruz_cm", "perimetro_toracico_cm",
                    "largo_cadera_cm", "peso_kg"],
-        "rmse": [8.1, 4.2, 9.5, 3.9, 38.0],
-        "mae": [6.3, 3.3, 7.4, 3.0, 29.5],
-        "r_pearson": [0.78, 0.81, 0.83, 0.70, 0.86],
+        "rmse": [11.9, 7.1, 11.3, 4.5, 83.8],
+        "mae": [9.7, 5.3, 9.2, 3.4, 71.8],
+        "r_pearson": [0.28, 0.49, 0.32, 0.25, 0.40],
     })
 
 
